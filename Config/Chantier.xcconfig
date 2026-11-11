@@ -1,0 +1,4 @@
+// Réglages communs du projet.
+// L'identifiant d'équipe Apple vient d'un fichier local ignoré par git (modèle : Signature.exemple.xcconfig).
+// Sans ce fichier, le projet compile quand même pour le simulateur.
+#include? "Signature.local.xcconfig"
