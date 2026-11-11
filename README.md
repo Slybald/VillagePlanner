@@ -10,7 +10,7 @@ App iPhone, gratuite et non officielle, pour suivre l'avancement d'un village de
 
 ## Compiler
 
-Il faut Xcode 27 (iOS 26 au minimum sur l'iPhone). Aucune dépendance tierce.
+Il faut Xcode 26.6 ou plus récent (iOS 26 au minimum sur l'iPhone). Aucune dépendance tierce.
 
 ```sh
 # Tests de la logique, sans simulateur
