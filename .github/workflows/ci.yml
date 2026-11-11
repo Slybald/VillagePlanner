@@ -1,12 +1,9 @@
 name: CI
 
-# Machines Mac comptées dix fois tant que le dépôt est privé : seulement sur main
-# et sur les PR prêtes à relire, jamais sur les brouillons.
+# Lancement manuel seulement : les minutes Mac du dépôt privé ne sont pas disponibles.
+# Les tests tournent en local avant chaque fusion. Remettre push et pull_request
+# quand le dépôt sera public ou les minutes rétablies.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
 
 concurrency:
