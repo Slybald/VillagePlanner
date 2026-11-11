@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Xcode et SwiftPM
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.build/
+.swiftpm/
+
+# Signature locale (identifiant d'équipe Apple)
+Config/Signature.local.xcconfig
+
+# Cache de l'outil `outils` (sources téléchargées)
+.cache/
+
+# Secrets
+.env
+.env.*
+secrets/
+
+# Contexte d'assistant, jamais suivi
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.claude/
