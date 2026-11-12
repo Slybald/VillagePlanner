@@ -24,23 +24,6 @@ struct MarqueExemple: View {
     }
 }
 
-/// Chantier et Village : provisoires jusqu'aux jalons suivants.
-struct PageProvisoire: View {
-    let titre: String
-    let message: String
-    let symbole: String
-    let estExemple: Bool
-    var illustration: Int? = nil
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if estExemple { MarqueExemple() }
-            EtatVide(titre: titre, message: message, symbole: symbole, illustration: illustration)
-        }
-        .pageChantier()
-    }
-}
-
 /// Une ligne « nom ... valeur » en texte libre : inventaire d'un HDV inconnu, catégorie sans travail.
 struct LigneTexte: View {
     let nom: String

@@ -122,11 +122,20 @@ struct Pastille: View {
     }
 }
 
+/// Un élément posé autour de l'hôtel de ville : à son niveau, son niveau maximum en fantôme.
+struct Environ: Hashable {
+    let id: Int
+    let niveau: Int
+    let maximum: Int
+}
+
 /// Le terrain du Cap : le décor du jeu dans un cadre de bois, l'hôtel de ville au milieu.
 /// Sans HDV (premier lancement), l'HDV maximum en fantôme : le terrain attend le village.
+/// `autour` : jusqu'à quatre éléments (deux de chaque côté), ceux dont dépend la date du cap.
 struct Terrain: View {
     let hdv: Int
     var fantome: Int? = nil
+    var autour: [Environ] = []
 
     @Environment(\.colorScheme) private var schema
     @ScaledMetric(relativeTo: .largeTitle) private var hauteur: CGFloat = 210
@@ -146,10 +155,31 @@ struct Terrain: View {
                 Illustration(id: Village.townHallID, niveau: hdv, maximum: fantome, taille: h * 0.78, avecPastille: false, lieu: "cap")
                     .offset(y: -h * 0.02)
             }
+            .overlay { flancs(h) }
             .clipShape(.rect(cornerRadius: Theme.rayon))
             .overlay {
                 RoundedRectangle(cornerRadius: Theme.rayon).strokeBorder(Theme.Couleur.bois, lineWidth: Theme.bord * 2)
             }
             .accessibilityHidden(true)
+    }
+
+    /// Deux colonnes de part et d'autre de l'hôtel de ville (la première à gauche, la deuxième à droite…).
+    private func flancs(_ h: CGFloat) -> some View {
+        let cote = h * 0.4
+        func colonne(_ elements: [Environ]) -> some View {
+            VStack(spacing: h * 0.06) {
+                ForEach(elements, id: \.self) { e in
+                    Illustration(id: e.id, niveau: e.niveau, maximum: e.maximum, taille: cote, lieu: "cap-autour")
+                }
+            }
+        }
+        let gauche = autour.enumerated().filter { $0.offset % 2 == 0 }.map(\.element)
+        let droite = autour.enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
+        return HStack {
+            colonne(gauche)
+            Spacer()
+            colonne(droite)
+        }
+        .padding(.horizontal, h * 0.05)
     }
 }

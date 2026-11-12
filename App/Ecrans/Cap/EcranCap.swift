@@ -24,6 +24,11 @@ struct EcranCap: View {
                         }
                         if let total = affiche.rapport.total {
                             avancement(total)
+                            if let plan = affiche.plan {
+                                consigne(plan)
+                                hypotheses(plan)
+                                bloquees(plan)
+                            }
                             categories
                         } else {
                             inventaire
@@ -88,13 +93,119 @@ struct EcranCap: View {
 
     private func avancement(_ total: Double) -> some View {
         VStack(alignment: .leading, spacing: Theme.Espace.l) {
-            Terrain(hdv: village.townHall)
-            GrandeDate(surtitre: "HDV \(village.townHall)",
-                       date: "\(Int((total * 100).rounded()))\u{202F}%",
-                       mouvement: "d'avancement total")
-            Jauge(valeur: total)
+            Terrain(hdv: village.townHall, autour: affiche.plan.map(environs) ?? [])
+            if let plan = affiche.plan {
+                dateDuCap(plan)
+            } else {
+                GrandeDate(surtitre: "HDV \(village.townHall)",
+                           date: "\(Int((total * 100).rounded()))\u{202F}%",
+                           mouvement: "d'avancement total")
+            }
+            VStack(alignment: .leading, spacing: Theme.Espace.s) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Avancement total").etiquetteChantier()
+                    Spacer()
+                    Text.pourcentageGrand(total)
+                }
+                Jauge(valeur: total)
+            }
+            .accessibilityElement(children: .combine)
+            if let plan = affiche.plan, let phrase = phraseDernierPoste(plan.plan) {
+                Text(phrase).font(Theme.Police.texte)
+            }
         }
         .animation(reduire ? nil : .snappy, value: total)
+    }
+
+    /// La date du cap, en très grand : « HDV 16 terminé, le 14 mars », ce qu'elle exclut et sur quoi elle repose.
+    private func dateDuCap(_ plan: PlanAffiche) -> some View {
+        let hypothese = plan.plan.heroLimitApplied ? "avec ton profil" : "au plus tôt"
+        if let cap = plan.plan.cap {
+            // L'année, quand ce n'est pas la nôtre, va au-dessus : « le 10 novembre » tient sur une ligne en très grand.
+            var calendrier = Calendar(identifier: .gregorian)
+            calendrier.timeZone = plan.fuseau
+            let annee = calendrier.component(.year, from: cap)
+            let autre = annee != calendrier.component(.year, from: plan.maintenant)
+            return GrandeDate(surtitre: "HDV \(village.townHall) terminé" + (autre ? " en \(annee)" : ""),
+                              date: "le\u{00A0}" + Lisible.jour(cap, now: cap, timeZone: plan.fuseau),
+                              mouvement: "dans " + Lisible.duree(Int(cap.timeIntervalSince(plan.maintenant).rounded(.up))),
+                              mention: "hors murs et équipements · " + hypothese)
+        }
+        return GrandeDate(surtitre: "HDV \(village.townHall)", date: "Tout est fait",
+                          mouvement: "Plus rien à améliorer.", mention: "hors murs et équipements")
+    }
+
+    /// Les éléments dont dépend la date : les dernières améliorations du poste qui finit en dernier.
+    private func environs(_ plan: PlanAffiche) -> [Environ] {
+        guard let dernier = plan.plan.lastWorker else { return [] }
+        var vus = Set<Int>()
+        var out: [Environ] = []
+        for pas in plan.plan.steps.filter({ $0.worker == dernier && $0.end > plan.maintenant }).sorted(by: { $0.end > $1.end }) {
+            guard vus.insert(pas.step.itemID).inserted else { continue }
+            out.append(Environ(id: pas.step.itemID, niveau: pas.step.element.level, maximum: pas.step.element.maxLevel))
+            if out.count == 4 { break }
+        }
+        return out
+    }
+
+    // MARK: Consigne et hypothèses
+
+    private func consigne(_ plan: PlanAffiche) -> some View {
+        CarteConsigne(texte: plan.consigne)
+    }
+
+    /// Ce que la date suppose, en une ligne ; plus ce que la photo dit des potions et des minuteurs illisibles.
+    private func hypotheses(_ plan: PlanAffiche) -> some View {
+        var lignes = ["La date suppose que les ressources sont toujours là et que chaque poste relance dès qu'il est libre"
+                      + (plan.profil.quietHours.map { ", sauf de \($0.start)\u{00A0}h à \($0.end)\u{00A0}h" } ?? "") + "."]
+        if plan.plan.potionActive {
+            lignes.append("Une potion est active dans ta photo : les fins réelles sont plus proches que ces dates.")
+        }
+        let n = plan.plan.unknownTimers
+        if n > 0 {
+            lignes.append("\(n) minuteur\(n > 1 ? "s" : "") de la photo \(n > 1 ? "sont illisibles et comptés" : "est illisible et compté") jusqu'à sa fin la plus tardive possible.")
+        }
+        return VStack(alignment: .leading, spacing: Theme.Espace.xs) {
+            ForEach(lignes, id: \.self) { Text($0) }
+        }
+        .font(Theme.Police.detail)
+        .foregroundStyle(Theme.Couleur.texteDoux)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Les améliorations que la simulation ne lancera jamais (S7), une ligne par élément.
+    @ViewBuilder private func bloquees(_ plan: PlanAffiche) -> some View {
+        let premiers = plan.plan.blocked.reduce(into: [BlockedStep]()) { liste, b in
+            if !liste.contains(where: { $0.step.itemID == b.step.itemID }) { liste.append(b) }
+        }
+        if !premiers.isEmpty {
+            VStack(alignment: .leading, spacing: Theme.Espace.s) {
+                Text("Bloquées").etiquetteChantier()
+                VStack(alignment: .leading, spacing: Theme.Espace.xs) {
+                    ForEach(Array(premiers.prefix(3).enumerated()), id: \.offset) { _, b in
+                        Text("\(nom(b.step.itemID)) \(b.step.level) : \(raison(b.reason))").font(Theme.Police.detail)
+                    }
+                    if premiers.count > 3 {
+                        Text("et \(premiers.count - 3) autre\(premiers.count > 4 ? "s" : "")")
+                            .font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux)
+                    }
+                }
+                .padding(Theme.Espace.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tuileChantier()
+            }
+        }
+    }
+
+    private func nom(_ id: Int) -> String { reference.item(id)?.name ?? "#\(id)" }
+
+    private func raison(_ raison: BlockedStep.Reason) -> String {
+        switch raison {
+        case .previousLevel: "attend son niveau précédent"
+        case .noWorker: "aucun poste pour la lancer"
+        case .requirement(let r): "exige \(nom(r.itemID)) \(r.level)"
+        case .heroLimit: "ta limite de héros est à zéro"
+        }
     }
 
     private var colonnes: [GridItem] {

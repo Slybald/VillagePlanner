@@ -1,5 +1,6 @@
 import CoreText
 import SwiftUI
+import UIKit
 
 /// Le thème « Chantier vivant » : la palette du jeu (or, élixir, élixir noir, bois, pierre, ciel), Lilita One pour
 /// les titres et les grands chiffres, Fredoka pour le texte. Seul endroit de l'app où vivent couleurs, polices et
@@ -76,6 +77,14 @@ enum Theme {
                 guard let url = Bundle.main.url(forResource: nom, withExtension: "ttf") else { continue }
                 CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
             }
+            titresDeNavigationEnLilita()
+        }
+
+        /// Les titres de la barre de navigation (Chantier, Village, une catégorie) en Lilita One, comme les titres de page.
+        private static func titresDeNavigationEnLilita() {
+            guard let police = UIFont(name: "LilitaOne", size: 20) else { return }
+            let titre = UIFontMetrics(forTextStyle: .title3).scaledFont(for: police, maximumPointSize: 30)
+            UINavigationBar.appearance().titleTextAttributes = [.font: titre]
         }
     }
 

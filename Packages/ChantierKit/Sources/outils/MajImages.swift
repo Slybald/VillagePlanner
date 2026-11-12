@@ -18,6 +18,10 @@ enum MajImages {
     static let decors = ["decor-jour.webp": "assets/sceneries/jungle_scenery/thumbnail.webp",
                          "decor-nuit.webp": "assets/sceneries/classic_scenery/thumbnail.webp"]
 
+    /// Icônes des six ressources (écran Chantier) : `ressource-<nom>.webp`, nommées comme `Resource.rawValue` en snake_case.
+    static let ressources = Dictionary(uniqueKeysWithValues: ["gold", "elixir", "dark_elixir", "shiny_ore", "glowy_ore", "starry_ore"]
+        .map { ("ressource-\($0).webp", "assets/resources/\($0).webp") })
+
     /// Règle de nommage du README de ClashKingAssets.
     static func nomNettoye(_ nom: String) -> String {
         nom.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: ".", with: "")
@@ -55,7 +59,7 @@ enum MajImages {
                                                                    "--jq", ".tree[] | select(.type == \"blob\") | .path"]),
                                   as: UTF8.self).split(separator: "\n").map(String.init))
 
-        var voulus = decors.map { (local: $0.key, distant: $0.value) }
+        var voulus = (decors.merging(ressources) { a, _ in a }).map { (local: $0.key, distant: $0.value) }
         var sansImage: [String] = []
         for item in reference.items {
             let f = fichiers(item)
