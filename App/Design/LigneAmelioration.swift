@@ -18,12 +18,12 @@ struct LigneAmelioration: View {
                 Text(nom).font(Theme.Police.texte)
                 Text("\(deNiveau) → \(aNiveau)")
                     .font(Theme.Police.chiffreDetail)
-                    .foregroundStyle(Theme.Couleur.encreDouce)
+                    .foregroundStyle(Theme.Couleur.texteDoux)
                     .accessibilityLabel("du niveau \(deNiveau) au niveau \(aNiveau)")
                 if aLancer {
                     Text("À lancer")
                         .font(Theme.Police.detail.weight(.semibold))
-                        .foregroundStyle(Theme.Couleur.accent)
+                        .foregroundStyle(Theme.Couleur.action)
                 }
             }
             Spacer(minLength: Theme.Espace.s)
@@ -32,7 +32,7 @@ struct LigneAmelioration: View {
                 if let cout {
                     Text(cout)
                         .font(Theme.Police.chiffreDetail)
-                        .foregroundStyle(Theme.Couleur.encreDouce)
+                        .foregroundStyle(Theme.Couleur.texteDoux)
                 }
             }
         }
@@ -49,5 +49,5 @@ struct LigneAmelioration: View {
         Filet()
     }
     .padding(Theme.Espace.marge)
-    .pageCarnet()
+    .pageChantier()
 }

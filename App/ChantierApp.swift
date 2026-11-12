@@ -6,6 +6,8 @@ struct ChantierApp: App {
     @State private var modele = ModeleApp()
     @Environment(\.scenePhase) private var phase
 
+    init() { Theme.Police.enregistrer() }
+
     var body: some Scene {
         WindowGroup {
             RacineView()
@@ -27,7 +29,7 @@ struct RacineView: View {
             EtatVide(titre: "Données du jeu illisibles",
                      message: "Le fichier de données embarqué est absent ou abîmé. Réinstalle l'app.",
                      symbole: "exclamationmark.triangle")
-                .pageCarnet()
+                .pageChantier()
         } else if let affiche = modele.affiche, let reference = modele.reference {
             TabView(selection: $modele.onglet) {
                 Tab("Cap", systemImage: "scope", value: OngletApp.cap) {
@@ -35,13 +37,13 @@ struct RacineView: View {
                 }
                 Tab("Chantier", systemImage: "hammer", value: OngletApp.chantier) {
                     PageProvisoire(titre: "Le planning arrive", message: "Les couloirs des ouvriers viendront au jalon 2.",
-                                   symbole: "calendar", estExemple: affiche.estExemple)
+                                   symbole: "calendar", estExemple: affiche.estExemple, illustration: 1000015)
                 }
                 Tab("Village", systemImage: "house", value: OngletApp.village) {
                     EcranVillage(affiche: affiche, reference: reference)
                 }
             }
-            .tint(Theme.Couleur.encre)
+            .tint(Theme.Couleur.elixirTexte)
         } else {
             EcranPremierLancement()
         }

@@ -26,7 +26,7 @@ struct MaquetteCap: View {
 
                     VStack(alignment: .leading, spacing: Theme.Espace.s) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("Avancement total").etiquetteCarnet()
+                            Text("Avancement total").etiquetteChantier()
                             Spacer()
                             Text.pourcentageGrand(0.64)
                         }
@@ -37,7 +37,7 @@ struct MaquetteCap: View {
                     CarteConsigne(texte: "Demain 14 h, deux ouvriers se libèrent. Lance l'Arc-X 11 et la Tour de sorts 4 : prépare 18 M d'or.") {}
 
                     VStack(alignment: .leading, spacing: Theme.Espace.m) {
-                        Text("Catégories").etiquetteCarnet()
+                        Text("Catégories").etiquetteChantier()
                         // Deux colonnes, une seule aux tailles d'accessibilité.
                         let colonnes = Array(repeating: GridItem(.flexible(), spacing: Theme.Espace.l, alignment: .leading),
                                              count: tailleTexte.isAccessibilitySize ? 1 : 2)
@@ -50,12 +50,12 @@ struct MaquetteCap: View {
                 .padding(.vertical, Theme.Espace.l)
             }
         }
-        .pageCarnet()
+        .pageChantier()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Text("Photo d'hier, 17\u{A0}h\u{A0}28")
                     .font(Theme.Police.detail)
-                    .foregroundStyle(Theme.Couleur.encreDouce)
+                    .foregroundStyle(Theme.Couleur.texteDoux)
                     .fixedSize()
             }
             .sharedBackgroundVisibility(.hidden)
@@ -77,14 +77,14 @@ struct MaquetteOnglets: View {
             }
             Tab("Chantier", systemImage: "hammer") {
                 EtatVide(titre: "Le planning arrive", message: "Les couloirs des ouvriers viendront au jalon 2.",
-                         symbole: "calendar").pageCarnet()
+                         symbole: "calendar").pageChantier()
             }
             Tab("Village", systemImage: "house") {
                 EtatVide(titre: "Le détail arrive", message: "Chaque bâtiment et chaque niveau, au jalon 1.",
-                         symbole: "list.bullet").pageCarnet()
+                         symbole: "list.bullet").pageChantier()
             }
         }
-        .tint(Theme.Couleur.encre)
+        .tint(Theme.Couleur.texte)
     }
 }
 

@@ -17,12 +17,13 @@ struct GrandeDate: View {
         VStack(alignment: .leading, spacing: Theme.Espace.xs) {
             Text(surtitre)
                 .font(Theme.Police.surtitre)
-                .foregroundStyle(Theme.Couleur.encreDouce)
+                .foregroundStyle(Theme.Couleur.texteDoux)
             Text(date)
                 // Plafond : au-delà, « le 14 mars » se coupe en trois lignes.
                 .font(Theme.Police.date(min(taille, 92)))
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
+                .contentTransition(.numericText())
                 .padding(.bottom, Theme.Espace.xs)
             if let mouvement {
                 Text(mouvement).font(Theme.Police.texte)
@@ -30,7 +31,7 @@ struct GrandeDate: View {
             if let mention {
                 Text(mention)
                     .font(Theme.Police.detail)
-                    .foregroundStyle(Theme.Couleur.encreDouce)
+                    .foregroundStyle(Theme.Couleur.texteDoux)
             }
         }
         .accessibilityElement(children: .combine)
@@ -43,5 +44,5 @@ struct GrandeDate: View {
                mouvement: "2 jours gagnés depuis mardi", mention: "hors murs et équipements")
         .padding(Theme.Espace.marge)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .pageCarnet()
+        .pageChantier()
 }

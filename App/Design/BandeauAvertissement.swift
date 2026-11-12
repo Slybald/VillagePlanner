@@ -8,13 +8,13 @@ struct BandeauAvertissement: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.Espace.m) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Theme.Couleur.accent)
+                .foregroundStyle(Theme.Couleur.action)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Theme.Espace.xs) {
                 Text(titre).font(Theme.Police.texte.weight(.semibold))
                 Text(message)
                     .font(Theme.Police.detail)
-                    .foregroundStyle(Theme.Couleur.encreDouce)
+                    .foregroundStyle(Theme.Couleur.texteDoux)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -34,5 +34,5 @@ struct BandeauAvertissement: View {
                              message: "Ton village contient des niveaux que l'app ne connaît pas encore. Les pourcentages peuvent être faux.")
         Spacer()
     }
-    .pageCarnet()
+    .pageChantier()
 }

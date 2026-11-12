@@ -32,6 +32,10 @@ final class ModeleApp {
     /// Le presse-papiers contient du texte qu'on n'a pas encore traité (test silencieux, sans lecture).
     private(set) var presseTexteAColler = false
     var onglet: OngletApp = .cap
+    /// Ce qui a monté de niveau au dernier import (type → nouveau niveau → ancien), pour l'animation.
+    private var montees: [Int: [Int: Int]] = [:]
+    /// Les montées déjà jouées, une fois par endroit.
+    @ObservationIgnored private var monteesJouees: Set<String> = []
 
     private let store: SnapshotStore
     /// Les réglages de l'app (l'exemple est-il actif). En mode `-importer-fichier`, un jeu isolé : les vrais restent intacts.
@@ -83,7 +87,12 @@ final class ModeleApp {
         do throws(SnapshotStore.SaveError) {
             let resultat = try store.save(texte)
             guard let derniere = store.latest() else { throw .cannotWrite }
+            let avant = affiche?.estExemple == false ? affiche?.village : nil   // depuis l'exemple : rien à animer
             affiche = calculer(derniere.export, photo: derniere.snapshot)
+            if let avant, let apres = affiche?.village {
+                montees = apres.montees(depuis: avant)
+                monteesJouees = []
+            }
             reglages.removeObject(forKey: Self.cleExemple)    // le premier vrai import efface l'exemple
             onglet = .cap
             switch resultat {
@@ -144,4 +153,12 @@ final class ModeleApp {
     }
 
     func fermerRetour() { retour = nil }
+
+    // MARK: Montées de niveau
+
+    /// L'ancien niveau d'un élément qui vient de monter, la première fois qu'on le montre à cet endroit.
+    func montee(id: Int, niveau: Int, lieu: String) -> Int? {
+        guard let ancien = montees[id]?[niveau], monteesJouees.insert("\(lieu)-\(id)-\(niveau)").inserted else { return nil }
+        return ancien
+    }
 }

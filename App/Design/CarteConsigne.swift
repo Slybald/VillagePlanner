@@ -8,7 +8,7 @@ struct CarteConsigne: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Consigne").etiquetteCarnet()
+            Text("Consigne").etiquetteChantier()
             Text(texte)
                 .font(Theme.Police.consigne)
                 .fixedSize(horizontal: false, vertical: true)
@@ -17,7 +17,7 @@ struct CarteConsigne: View {
                     Label(titreAction, systemImage: "chevron.right")
                         .labelStyle(TitreAvantIcone())
                         .font(Theme.Police.texte.weight(.semibold))
-                        .foregroundStyle(Theme.Couleur.accent)
+                        .foregroundStyle(Theme.Couleur.action)
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -27,7 +27,7 @@ struct CarteConsigne: View {
         .background(Theme.Couleur.surface, in: .rect(cornerRadius: Theme.rayon))
         // Le bord gauche épais rappelle une fiche agrafée dans le carnet.
         .overlay(alignment: .leading) {
-            Rectangle().fill(Theme.Couleur.encre).frame(width: 3).accessibilityHidden(true)
+            Rectangle().fill(Theme.Couleur.texte).frame(width: 3).accessibilityHidden(true)
         }
     }
 }
@@ -45,5 +45,5 @@ private struct TitreAvantIcone: LabelStyle {
 #Preview("Carte de consigne") {
     CarteConsigne(texte: "Demain 14 h, deux ouvriers se libèrent. Lance l'Arc-X 11 et la Tour de sorts 4 : prépare 18 M d'or.") {}
         .padding(Theme.Espace.marge)
-        .pageCarnet()
+        .pageChantier()
 }
