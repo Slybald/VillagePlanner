@@ -55,11 +55,32 @@ extension ReferenceData {
     /// Emplacement du `reference.json` embarqué.
     public static var bundledURL: URL? { Bundle.module.url(forResource: "reference", withExtension: "json") }
 
-    /// Le `reference.json` embarqué.
+    /// Emplacement du `noms-fr.json` embarqué (identifiant → nom français).
+    public static var bundledFrenchNamesURL: URL? { Bundle.module.url(forResource: "noms-fr", withExtension: "json") }
+
+    /// Le `reference.json` embarqué, avec les noms français de `noms-fr.json` (absent ou illisible : noms anglais).
     public static func load() throws(ReferenceError) -> ReferenceData {
         guard let url = bundledURL else { throw .missing }
-        return try load(from: url)
+        let reference = try load(from: url)
+        guard let nomsURL = bundledFrenchNamesURL, let data = try? Data(contentsOf: nomsURL),
+              let noms = try? JSONDecoder().decode([String: String].self, from: data) else { return reference }
+        return reference.withFrenchNames(noms)
     }
+
+    /// Même données, `names["fr"]` renseigné pour chaque identifiant de `noms` (clé : l'identifiant en texte).
+    public func withFrenchNames(_ noms: [String: String]) -> ReferenceData {
+        let items = items.map { it -> ReferenceItem in
+            guard let nom = noms[String(it.id)] else { return it }
+            return ReferenceItem(id: it.id, names: it.names.merging(["fr": nom]) { _, new in new },
+                                 section: it.section, category: it.category, exclusion: it.exclusion,
+                                 worker: it.worker, levels: it.levels, countByTownHall: it.countByTownHall,
+                                 maxLevelByTownHall: it.maxLevelByTownHall, mergedFrom: it.mergedFrom)
+        }
+        return ReferenceData(items: items, source: source, maxTownHall: maxTownHall, format: format)
+    }
+
+    /// Nom français d'un identifiant, repli sur l'anglais ; `nil` si l'identifiant est inconnu.
+    public func name(of id: Int) -> String? { item(id)?.name }
 
     public static func load(from url: URL) throws(ReferenceError) -> ReferenceData {
         guard let data = try? Data(contentsOf: url) else { throw .missing }
