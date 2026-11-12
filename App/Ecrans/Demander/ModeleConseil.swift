@@ -15,9 +15,11 @@ final class ModeleConseil {
     private(set) var jusqua: Date?
     @ObservationIgnored private var enCours: String?
     @ObservationIgnored private let conseiller: Conseiller
+    /// Le même client sert les questions de l'écran Demander : un seul budget (T19).
+    @ObservationIgnored let client: ClaudeClient
     @ObservationIgnored private var exempleAutorise = false
     #if DEBUG
-    @ObservationIgnored private var fausseApi: FausseApi?
+    @ObservationIgnored private(set) var fausseApi: FausseApi?
     #endif
 
     init() {
@@ -30,14 +32,14 @@ final class ModeleConseil {
             let fausse = exemple == "conseiller" ? FausseApi() : nil
             fausseApi = fausse
             exempleAutorise = true
-            let client = ClaudeClient(keys: MemorySecretStore(fausse == nil ? nil : "factice-capture-0000-0000-0000-4F2A"),
-                                      budget: BudgetStore(defaults: defaults), transport: fausse, calendar: .current)
+            client = ClaudeClient(keys: MemorySecretStore(fausse == nil ? nil : "factice-capture-0000-0000-0000-4F2A"),
+                                  budget: BudgetStore(defaults: defaults), transport: fausse, calendar: .current)
             conseiller = Conseiller(client: client, store: PreferencesConseil(defaults: defaults))
             return
         }
         #endif
-        conseiller = Conseiller(client: ClaudeClient(keys: KeychainStore(), budget: BudgetStore(), calendar: .current),
-                                store: PreferencesConseil())
+        client = ClaudeClient(keys: KeychainStore(), budget: BudgetStore(), calendar: .current)
+        conseiller = Conseiller(client: client, store: PreferencesConseil())
     }
 
     /// La clé du conseil pour ce village ; nil quand il n'y a rien à demander (pas de plan, village d'exemple).

@@ -225,12 +225,12 @@ public enum Questions {
 
     /// Un appel par question. Aucune valeur du modèle n'est montrée sans être revérifiée ; tout échec rend un échange sans réponse.
     public static func poser(_ question: String, contexte: ContexteQuestion, resume: ResumeConseil, client: ClaudeClient,
-                             fuseau: TimeZone) async -> EchangeQuestion {
+                             fuseau: TimeZone, appel: Date? = nil) async -> EchangeQuestion {
         let texte = question.trimmingCharacters(in: .whitespacesAndNewlines)
         let reponse: ReponseQuestion
         do throws(ClaudeError) {
             reponse = try await client.ask(system: systeme, prompt: message(question: texte, resume: resume), schema: schema,
-                                           as: ReponseQuestion.self, now: contexte.now)
+                                           as: ReponseQuestion.self, now: appel ?? contexte.now)
         } catch { return EchangeQuestion(question: texte, comparaison: nil, phrase: nil, horsListe: false, erreur: error) }
         return verifier(reponse, question: texte, contexte: contexte, resume: resume, fuseau: fuseau)
     }

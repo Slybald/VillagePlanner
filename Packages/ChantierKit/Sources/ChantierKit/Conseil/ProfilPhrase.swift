@@ -119,14 +119,15 @@ public enum GardeProfil {
         return "Éléments épinglables (identifiant : nom) :\n\(liste)\n\n<phrase_du_joueur>\n\(assainir(phrase))\n</phrase_du_joueur>"
     }
 
-    /// Un seul appel : la phrase devient un profil proposé, ou rien (erreur du service, réponse hors bornes).
+    /// Un seul appel : la phrase devient un profil proposé, ou rien (erreur du service, réponse hors bornes). `now` date le plan ;
+    /// `appel` (par défaut `now`) est l'heure de l'appareil, pour le budget (le village d'exemple se lit à une date ancienne).
     public static func proposer(phrase: String, village: Village, reference: ReferenceData, actuel: Profile, client: ClaudeClient,
-                                now: Date, fuseau: TimeZone) async -> Result<ProfilPropose, ErreurProfil> {
+                                now: Date, fuseau: TimeZone, appel: Date? = nil) async -> Result<ProfilPropose, ErreurProfil> {
         let permis = epinglables(village: village, reference: reference)
         let reponse: ReponseProfil
         do throws(ClaudeError) {
             reponse = try await client.ask(system: systeme, prompt: message(phrase: phrase, epinglables: permis, reference: reference),
-                                           schema: schema(epinglables: permis), as: ReponseProfil.self, now: now)
+                                           schema: schema(epinglables: permis), as: ReponseProfil.self, now: appel ?? now)
         } catch { return .failure(.service(error)) }
         switch verifier(reponse, actuel: actuel, epinglables: Set(permis), reference: reference, now: now, fuseau: fuseau) {
         case .success(let p): return .success(p)
