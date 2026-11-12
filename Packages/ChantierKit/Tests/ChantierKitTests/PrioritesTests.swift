@@ -48,9 +48,9 @@ enum Prio {
     }
 
     static func queues(_ items: [ReferenceItem], _ sections: [String: [ExportEntry]], profile: Profile = Profile(),
-                       advice: AdviceData = advice) -> [WorkerKind: [PrioritizedStep]] {
+                       advice: AdviceData = advice, now: Date = Rest.date) -> [WorkerKind: [PrioritizedStep]] {
         let (v, r) = village(items, sections)
-        return priorities(of: remainingSteps(of: v, reference: r, profile: profile, now: Rest.date),
+        return priorities(of: remainingSteps(of: v, reference: r, profile: profile, now: now),
                           in: v, reference: r, advice: advice, profile: profile)
     }
 
@@ -209,6 +209,35 @@ enum Prio {
         #expect(P.labels(P.queues(items, s)[.builder]) == ["lab2", "hall2", "cannon2", "mine2"])
     }
 
+    @Test func E2_unPasADeuxRessourcesPrendLaPlusDemandee() {
+        // Labo (or 1 000, 100 s) d'abord (E3). Le canon coûte or 1 000 et élixir 10 : l'or est demandé à 50 %,
+        // l'élixir à 0 %. Sa part est la plus forte des deux (50 %) : la mine (élixir noir, 0 %) passe avant lui,
+        // malgré sa chaîne plus courte. Avec la plus faible des parts, le canon passerait (E3, 50 s contre 10).
+        let canon = ReferenceItem(id: P.cannon, names: ["en": "c"], section: "buildings", category: .defenses,
+                                  exclusion: nil, worker: .builder,
+                                  levels: [ReferenceLevel(level: 1, costs: [], duration: 10, requires: []),
+                                           ReferenceLevel(level: 2, costs: [ResourceAmount(resource: .gold, amount: 1000),
+                                                                            ResourceAmount(resource: .elixir, amount: 10)],
+                                                          duration: 50, requires: [])],
+                                  countByTownHall: [0, 1, 1, 1, 1], maxLevelByTownHall: [0, 2, 2, 2, 2], mergedFrom: [])
+        let items = [P.item(P.lab, .economy, [P.lv(1, 10), P.lv(1000, 100)]), canon,
+                     P.item(P.mine, .economy, resource: .darkElixir, [P.lv(1, 10), P.lv(10, 10)])]
+        let s = ["buildings": [P.e(P.lab, 1), P.e(P.cannon, 1), P.e(P.mine, 1)]]
+        #expect(P.labels(P.queues(items, s)[.builder]) == ["lab2", "mine2", "cannon2"])
+    }
+
+    @Test func E2_unGroupeDExemplairesDemandeSonCoutFoisLeNombre() {
+        // Mine (élixir 100, 100 s), puis cinq canons (or 100 chacun, 90 s) : E3. L'or placé fait 5 × 100 = 500 sur
+        // 600 (83 %), l'élixir 100 sur 150 (67 %) : le Hall (élixir 50) passe avant le labo (or 100).
+        // Compté une fois, l'or ferait 100 sur 200 (50 %) et le labo passerait.
+        let items = [P.item(P.mine, .economy, resource: .elixir, [P.lv(1, 10), P.lv(100, 100)]),
+                     P.item(P.cannon, .defenses, count: 5, [P.lv(1, 10), P.lv(100, 90)]),
+                     P.item(P.lab, .economy, [P.lv(1, 10), P.lv(100, 10)]),
+                     P.item(P.hall, .economy, resource: .elixir, [P.lv(1, 10), P.lv(50, 10)])]
+        let s = ["buildings": [P.e(P.mine, 1), P.e(P.cannon, 1, 5), P.e(P.lab, 1), P.e(P.hall, 1)]]
+        #expect(P.labels(P.queues(items, s)[.builder]) == ["mine2", "cannon2", "hall2", "lab2"])
+    }
+
     @Test func E3_laChaineRestanteLaPlusLongue() {
         // Mêmes rang et ressource : le canon (deux niveaux, 20 s) avant la mine (un niveau, 15 s), malgré l'identifiant ;
         // après son niveau 2, il ne lui reste que 10 s : la mine passe.
@@ -254,6 +283,13 @@ enum Prio {
         #expect(q(1) == ["mine2", "cannon2", "queen2", "warden2"])
         // Limite 2 : un héros de plus, pas deux.
         #expect(q(2) == ["queen2", "mine2", "warden2", "cannon2"])
+    }
+
+    @Test func limiteDeHeros_unMinuteurFiniDepuisLaPhotoLibereLOuvrier() {
+        // Le roi devait finir 500 s après la photo ; on calcule 600 s après : il ne compte plus (S0). Trois ouvriers
+        // libres et une place de héros : la reine, puis deux bâtiments, puis le gardien.
+        let q = P.queues(Self.heroItems, Self.heroSections, profile: Profile(heroLimit: 1), now: Rest.date.addingTimeInterval(600))
+        #expect(P.labels(q[.builder]) == ["queen2", "mine2", "cannon2", "warden2"])
     }
 
     // MARK: - Labo, familiers, forge
