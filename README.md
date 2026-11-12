@@ -24,7 +24,7 @@ Pour installer sur un iPhone, copie `Config/Signature.exemple.xcconfig` en `Conf
 
 ## Données
 
-Les données de référence du jeu (coûts, durées, niveaux maximums) sont tirées de [ClashKingInc/ClashKingAssets](https://github.com/ClashKingInc/ClashKingAssets) (GPL-3.0), contrôlées avec [chiefpansancolt/clash-of-clans-data](https://github.com/chiefpansancolt/clash-of-clans-data) (MIT). L'app ne touche pas au jeu : elle lit seulement l'export que tu copies toi-même.
+Les données de référence du jeu (coûts, durées, niveaux maximums) sont tirées de [ClashKingInc/ClashKingAssets](https://github.com/ClashKingInc/ClashKingAssets) (GPL-3.0), contrôlées avec [chiefpansancolt/clash-of-clans-data](https://github.com/chiefpansancolt/clash-of-clans-data) (MIT). Le fichier embarqué `reference.json` est produit par `outils maj-reference` (procédure : [docs/mise-a-jour-du-jeu.md](docs/mise-a-jour-du-jeu.md)). L'app ne touche pas au jeu : elle lit seulement l'export que tu copies toi-même.
 
 ## Mention
 
