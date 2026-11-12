@@ -6,12 +6,13 @@ struct EcranVillage: View {
     let affiche: VillageAffiche
     let reference: ReferenceData
 
+    @Environment(ModeleApp.self) private var modele
     @Environment(\.dynamicTypeSize) private var tailleTexte
     @ScaledMetric(relativeTo: .body) private var image: CGFloat = 52
     @State private var chemin: [ChantierKit.Category] = Self.cheminDeCapture()
 
     private var village: Village { affiche.village }
-    private var restant: RestantAffiche { RestantAffiche(affiche: affiche, reference: reference) }
+    private var restant: RestantAffiche { RestantAffiche(affiche: affiche, reference: reference, profil: modele.profil) }
 
     /// Débogage seulement : `-categorie <défenses|…>` ouvre la catégorie au lancement (captures).
     private static func cheminDeCapture() -> [ChantierKit.Category] {

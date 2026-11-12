@@ -7,20 +7,9 @@ struct RestantAffiche {
     /// « Avec la réduction actuelle… » quand une réduction du profil court à la date du calcul.
     let mentionReduction: String?
 
-    /// Le profil n'est pas réglable avant T17 : vide par défaut. Débogage : `-reduction <pourcentage>` (captures).
-    static var profilParDefaut: Profile {
-        #if DEBUG
-        let pourcentage = UserDefaults.standard.integer(forKey: "reduction")
-        if pourcentage > 0 {
-            return Profile(builderReduction: Reduction(percent: pourcentage, endsAt: .distantFuture))
-        }
-        #endif
-        return Profile()
-    }
-
     /// L'exemple a une date d'export ancienne : ses minuteurs se lisent à cette date, pas à celle d'aujourd'hui.
-    init(affiche: VillageAffiche, reference: ReferenceData, profil: Profile = Self.profilParDefaut) {
-        let maintenant = affiche.estExemple ? affiche.village.date : Date()
+    init(affiche: VillageAffiche, reference: ReferenceData, profil: Profile) {
+        let maintenant = PlanAffiche.horloge(village: affiche.village, estExemple: affiche.estExemple)
         pas = remainingSteps(of: affiche.village, reference: reference, profile: profil, now: maintenant)
         mentionReduction = Lisible.reductions(profil, at: maintenant)
     }

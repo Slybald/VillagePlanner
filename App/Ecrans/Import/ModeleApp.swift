@@ -34,6 +34,16 @@ final class ModeleApp {
     /// Le presse-papiers contient du texte qu'on n'a pas encore traité (test silencieux, sans lecture).
     private(set) var presseTexteAColler = false
     var onglet: OngletApp = .cap
+    /// Le profil de jeu : tout changement est enregistré et recalcule le plan.
+    var profil = Profile() {
+        didSet {
+            guard profil != oldValue else { return }
+            profilStore.save(profil)
+            rafraichirPlan()
+        }
+    }
+    /// Les Réglages sont ouverts (feuille sur l'écran Cap).
+    var reglagesOuverts = false
     /// Ce qui a monté de niveau au dernier import (type → nouveau niveau → ancien), pour l'animation.
     private var montees: [Int: [Int: Int]] = [:]
     /// Les montées déjà jouées, une fois par endroit.
@@ -44,6 +54,7 @@ final class ModeleApp {
     private let conseils = (try? AdviceData.load()) ?? AdviceData()
 
     private let store: SnapshotStore
+    private let profilStore: ProfilStore
     /// Les réglages de l'app (l'exemple est-il actif). En mode `-importer-fichier`, un jeu isolé : les vrais restent intacts.
     private let reglages: UserDefaults
     /// `changeCount` du presse-papiers au dernier collage : tant qu'il ne bouge pas, on ne reproposera pas le même texte.
@@ -70,6 +81,14 @@ final class ModeleApp {
         #endif
         store = SnapshotStore(directory: dossier)
         self.reglages = reglages
+        profilStore = ProfilStore(defaults: reglages)
+        profil = profilStore.load()
+        #if DEBUG
+        // Captures : `-reduction <pourcentage>` met une réduction d'ouvriers sans fin, sans l'enregistrer.
+        let pourcentage = arguments.integer(forKey: "reduction")
+        if pourcentage > 0 { profil.builderReduction = Reduction(percent: pourcentage, endsAt: .distantFuture) }
+        if arguments.bool(forKey: "reglages") { reglagesOuverts = true }
+        #endif
 
         if !fichiersDebug.isEmpty {
             for chemin in fichiersDebug {
@@ -153,9 +172,14 @@ final class ModeleApp {
 
     private func plan(village: Village, export: VillageExport, reference: ReferenceData, estExemple: Bool) -> PlanAffiche? {
         guard village.status != .unknownTownHall else { return nil }
-        return PlanAffiche(village: village, export: export, reference: reference, conseils: conseils,
+        return PlanAffiche(village: village, export: export, reference: reference, conseils: conseils, profil: profil,
                            maintenant: PlanAffiche.horloge(village: village, estExemple: estExemple))
     }
+
+    /// La date du calcul : celle du plan, sinon l'heure de l'appareil (l'exemple se lit à la date de son export).
+    var maintenant: Date { affiche?.plan?.maintenant ?? Date() }
+    /// Date de la dernière révision des conseils (ISO 8601, jour).
+    var dateConseils: String { conseils.date }
 
     /// Au retour au premier plan : les postes libérés, les échéances et la consigne suivent l'heure.
     func rafraichirPlan() {

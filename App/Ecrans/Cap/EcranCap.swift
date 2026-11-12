@@ -13,6 +13,7 @@ struct EcranCap: View {
     private var village: Village { affiche.village }
 
     var body: some View {
+        @Bindable var modele = modele
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -39,7 +40,12 @@ struct EcranCap: View {
                 }
             }
             .pageChantier()
+            .sheet(isPresented: $modele.reglagesOuverts) { EcranReglages(reference: reference) }
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { modele.reglagesOuverts = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityLabel("Réglages")
+                }
                 if let photo = affiche.photo {
                     ToolbarItem(placement: .topBarLeading) {
                         Text(photo.ageDescription(now: Date()))

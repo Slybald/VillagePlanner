@@ -6,6 +6,7 @@ struct EcranCategorie: View {
     let categorie: ChantierKit.Category
     let affiche: VillageAffiche
     let reference: ReferenceData
+    @Environment(ModeleApp.self) private var modele
 
     #if DEBUG
     @State private var terminesOuverts = ProcessInfo.processInfo.arguments.contains("-termines")   // captures
@@ -17,7 +18,7 @@ struct EcranCategorie: View {
         let tous = Elements.de(categorie, village: affiche.village, reference: reference)
         let restants = tous.filter { !$0.estTermine }
         let termines = tous.filter(\.estTermine)
-        let restant = RestantAffiche(affiche: affiche, reference: reference)
+        let restant = RestantAffiche(affiche: affiche, reference: reference, profil: modele.profil)
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -38,7 +39,12 @@ struct EcranCategorie: View {
                         VStack(alignment: .leading, spacing: Theme.Espace.s) {
                             Text("Reste à faire").etiquetteChantier()
                             ForEach(Array(restants.enumerated()), id: \.offset) { _, e in
-                                LigneElement(element: e.element, nom: e.fiche.name, complement: restant.complement(e.element))
+                                let id = e.element.itemID
+                                LigneElement(element: e.element, nom: e.fiche.name, complement: restant.complement(e.element),
+                                             epingle: modele.profil.pinned.contains(id)) {
+                                    if modele.profil.pinned.contains(id) { modele.profil.pinned.remove(id) }
+                                    else { modele.profil.pinned.insert(id) }
+                                }
                             }
                         }
                     }
