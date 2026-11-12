@@ -40,6 +40,9 @@ enum Theme {
         static let chiffreDetail = Font.subheadline.monospacedDigit()
         /// Chiffre seul et mis en avant (avancement total) : chasse fixe complète.
         static let chiffreGrand = Font.system(.title2, design: .monospaced).weight(.medium)
+        /// Le « % » qui suit `chiffreGrand` : même taille et même graisse, mais proportionnel,
+        /// pour que l'espace fine insécable reste fine.
+        static let chiffreGrandSigne = Font.system(.title2).weight(.medium)
         /// Étiquette de rubrique, en capitales espacées, comme sur une fiche imprimée.
         static let etiquette = Font.system(.caption, design: .monospaced).weight(.medium)
     }

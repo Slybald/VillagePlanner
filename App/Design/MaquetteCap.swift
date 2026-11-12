@@ -21,15 +21,14 @@ struct MaquetteCap: View {
                 }
                 VStack(alignment: .leading, spacing: Theme.Espace.xl) {
                     GrandeDate(surtitre: "HDV 16 terminé", date: "le 14 mars",
-                               mouvement: "2 jours de gagnés depuis mardi",
+                               mouvement: "2 jours gagnés depuis mardi",
                                mention: "hors murs et équipements")
 
                     VStack(alignment: .leading, spacing: Theme.Espace.s) {
                         HStack(alignment: .firstTextBaseline) {
                             Text("Avancement total").etiquetteCarnet()
                             Spacer()
-                            Text(0.64, format: .percent.precision(.fractionLength(0)))
-                                .font(Theme.Police.chiffreGrand)
+                            Text.pourcentageGrand(0.64)
                         }
                         Jauge(valeur: 0.64)
                     }
