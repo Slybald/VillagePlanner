@@ -9,7 +9,7 @@ let package = Package(
         .executable(name: "outils", targets: ["outils"]),
     ],
     targets: [
-        .target(name: "ChantierKit", resources: [.copy("Reference/Ressources/reference.json"), .copy("Reference/Ressources/conseils.json")]),
+        .target(name: "ChantierKit", resources: [.copy("Reference/Ressources/reference.json"), .copy("Reference/Ressources/conseils.json"), .copy("Reference/Ressources/noms-fr.json")]),
         .executableTarget(name: "outils", dependencies: ["ChantierKit"]),
         .testTarget(
             name: "ChantierKitTests",

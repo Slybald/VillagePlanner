@@ -6,7 +6,7 @@ struct GrandeDate: View {
     let surtitre: String
     /// « le 14 mars »
     let date: String
-    /// « 2 jours de gagnés depuis mardi » ; rien avant le deuxième import.
+    /// « 2 jours gagnés depuis mardi » ; rien avant le deuxième import.
     var mouvement: String? = nil
     /// « hors murs et équipements »
     var mention: String? = nil
@@ -40,7 +40,7 @@ struct GrandeDate: View {
 
 #Preview("Grande date") {
     GrandeDate(surtitre: "HDV 16 terminé", date: "le 14 mars",
-               mouvement: "2 jours de gagnés depuis mardi", mention: "hors murs et équipements")
+               mouvement: "2 jours gagnés depuis mardi", mention: "hors murs et équipements")
         .padding(Theme.Espace.marge)
         .frame(maxWidth: .infinity, alignment: .leading)
         .pageCarnet()

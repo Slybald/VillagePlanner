@@ -49,8 +49,9 @@ enum MajReference {
         }
 
         let source = ReferenceSource(name: clashKing.depot, license: clashKing.licence, commit: ck.commit, date: ck.date)
-        let reference = try ConversionClashKing.convertir(
+        let brute = try ConversionClashKing.convertir(
             try ConversionClashKing.lire(dossier: dossierCache(clashKing, ck)), source: source)
+        let (reference, sansNom) = NomsFr.fusionner(brute, noms: try NomsFr.lire())
         let seconde = try SecondeSource.lire(dossier: dossierCache(chiefpansancolt, chief))
         let avant = try? ReferenceData.load(from: sortie)
 
@@ -68,6 +69,10 @@ enum MajReference {
             ## Changements depuis la version précédente
 
             \(Rapport.changements(avant: avant, apres: reference))
+            ## Noms français manquants (noms-fr.json)
+
+            \(sansNom.isEmpty ? "Aucun." : sansNom.map(String.init).joined(separator: ", "))
+
             ## Écarts avec la source de contrôle
 
             \(Rapport.ecarts(reference, seconde))
