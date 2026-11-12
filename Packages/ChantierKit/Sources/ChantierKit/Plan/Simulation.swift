@@ -64,15 +64,16 @@ public struct Plan: Sendable, Equatable {
     public let now: Date
     /// Les minuteurs de la photo, puis les lancements dans l'ordre du temps.
     public let steps: [ScheduledStep]
-    /// Fin de la dernière amélioration de chaque poste qui a quelque chose à faire.
+    /// Fin de la dernière amélioration de chaque poste qui a encore quelque chose à faire après `now`.
     public let workerEnds: [WorkerKind: Date]
     /// Le poste qui finit en dernier ; nil quand rien ne reste.
     public let lastWorker: WorkerKind?
-    /// Fin de la dernière amélioration à durée, tous postes confondus, hors murs et équipements ; nil quand rien ne reste.
+    /// Fin de la dernière amélioration à durée, tous postes confondus, hors murs et équipements ; nil quand rien ne
+    /// reste après `now` (tous les minuteurs de la photo sont finis et rien n'est à lancer).
     public let cap: Date?
     public let blocked: [BlockedStep]
-    /// La limite de héros a joué : à un moment, elle est atteinte alors qu'un héros prêt attend. L'écran dit alors
-    /// « avec ton profil », sinon « au plus tôt ».
+    /// La limite de héros a joué : à un moment, elle a retenu un héros prêt alors qu'un ouvrier était libre. L'écran
+    /// dit alors « avec ton profil », sinon « au plus tôt ».
     public let heroLimitApplied: Bool
     /// Potions actives dans la photo (clés de `boosts`) : les fins réelles sont plus proches que les minuteurs.
     public let activeBoosts: [String]
@@ -98,6 +99,10 @@ public struct Plan: Sendable, Equatable {
 
 /// Clés de `boosts` qui accélèrent le village principal (les `clocktower_*` sont la base des ouvriers).
 let potionKeys = ["builder_boost", "builder_consumable", "lab_boost", "lab_consumable", "pet_boost"]
+
+/// Hypothèse à confirmer en jeu (le PLAN n'en dit rien) : le labo et la Maison des familiers travaillent pendant
+/// leur propre amélioration. À `false`, un poste en amélioration ne compte plus dans sa capacité.
+let postsWorkWhileUpgrading = true
 
 /// Postes simulés, dans l'ordre où ils sont examinés à chaque événement.
 private let simulatedWorkers: [WorkerKind] = [.builder, .laboratory, .petHouse]
@@ -209,7 +214,10 @@ private struct Simulation {
 
     /// Postes de ce type existants : bâtiments au niveau 1 au moins (un poste construit pendant le plan compte).
     func capacity(_ worker: WorkerKind) -> Int {
-        Village.posts.filter { $0.kind == worker }.reduce(0) { $0 + count($1.id, atLeast: 1) }
+        let posts = Village.posts.filter { $0.kind == worker }
+        let upgrading = postsWorkWhileUpgrading || worker == .builder ? 0
+            : running.filter { r in posts.contains { $0.id == r.job.step.itemID } }.count
+        return posts.reduce(0) { $0 + count($1.id, atLeast: 1) } - upgrading
     }
 
     /// Bâtiments d'origine d'une fusion, regroupés : (type, niveau) → nombre d'exemplaires exigés.
@@ -242,6 +250,18 @@ private struct Simulation {
         lanes[worker] = taken
         running.append(Running(job: job, lane: lane, end: end))
         busy[job.copy] = true
+        // Un bâtiment fusionné consomme ses bâtiments d'origine dès son lancement, les plus avancés d'abord
+        // (la photo a déjà retiré ceux d'une fusion en cours).
+        if job.reason != nil {
+            for (req, n) in merged(job.step) {
+                var left = n
+                for l in (levels[req.itemID] ?? [:]).keys.sorted(by: >) where l >= req.level && left > 0 {
+                    let take = min(left, levels[req.itemID]![l]!)
+                    levels[req.itemID]![l]! -= take
+                    left -= take
+                }
+            }
+        }
         scheduled.append(ScheduledStep(step: job.step, copy: job.index, lane: lane, start: start, end: end,
                                        costs: costs, reductionPercent: percent, fromSnapshot: job.reason == nil,
                                        reason: job.reason))
@@ -254,15 +274,6 @@ private struct Simulation {
         busy[r.job.copy] = false
         levels[id, default: [:]][level - 1, default: 0] -= 1
         levels[id, default: [:]][level, default: 0] += 1
-        // Un bâtiment fusionné consomme ses bâtiments d'origine, les plus avancés d'abord.
-        for (req, n) in merged(r.job.step) {
-            var left = n
-            for l in (levels[req.itemID] ?? [:]).keys.sorted(by: >) where l >= req.level && left > 0 {
-                let take = min(left, levels[req.itemID]![l]!)
-                levels[req.itemID]![l]! -= take
-                left -= take
-            }
-        }
     }
 
     /// Le déroulé : S0 (départ à `now`), S2 à chaque événement, S4, S7 (arrêt quand plus rien ne tourne).
@@ -275,16 +286,23 @@ private struct Simulation {
             while again {                                                     // pas de durée nulle : même instant
                 for r in running where r.end <= t { complete(r) }
                 running.removeAll { $0.end <= t }
+                noteHeroLimit()
                 for worker in simulatedWorkers { assign(worker, at: t) }
                 again = running.contains { $0.end <= t }
-            }
-            if !heroLimitApplied, let limit = profile.heroLimit, heroesRunning >= limit,
-               queues[.builder]?.contains(where: { $0.step.category == .heroes && ready($0) }) == true {
-                heroLimitApplied = true                                       // un héros prêt attend la limite
             }
             guard let next = running.map(\.end).min() else { break }          // S7
             t = release(max(next, t))
         }
+    }
+
+    /// La limite joue quand, à cet instant, plus de héros sont prêts qu'elle n'en laisse partir et qu'un ouvrier libre
+    /// aurait pu en prendre un de plus. Un héros qui n'attend qu'un ouvrier ne compte pas.
+    mutating func noteHeroLimit() {
+        guard !heroLimitApplied, let limit = profile.heroLimit else { return }
+        let slots = max(0, limit - heroesRunning)
+        let free = capacity(.builder) - running.filter { $0.job.step.worker == .builder }.count
+        let ready = queues[.builder]?.filter { $0.step.category == .heroes && self.ready($0) }.count ?? 0
+        if ready > slots, free > slots { heroLimitApplied = true }
     }
 
     /// S2 : tant que le poste a un couloir libre, il prend le premier pas lançable de sa file.
@@ -305,8 +323,9 @@ private struct Simulation {
     }
 
     func plan(now: Date, activeBoosts: [String]) -> Plan {
+        // Un minuteur fini avant `now` n'est plus « à venir » : quand rien d'autre ne reste, pas de cap (tout est fait).
         var ends: [WorkerKind: Date] = [:]
-        for s in scheduled { ends[s.worker] = max(ends[s.worker] ?? s.end, s.end) }
+        for s in scheduled where !s.fromSnapshot || s.end > now { ends[s.worker] = max(ends[s.worker] ?? s.end, s.end) }
         let last = simulatedWorkers.filter { ends[$0] != nil }.max { ends[$0]! < ends[$1]! }   // à égalité : le premier
         let blocked = simulatedWorkers.flatMap { worker in
             (queues[worker] ?? []).map { job -> BlockedStep in

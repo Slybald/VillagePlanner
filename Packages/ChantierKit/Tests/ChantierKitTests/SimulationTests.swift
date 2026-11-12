@@ -196,6 +196,65 @@ enum Sim {
         #expect(empty.cap == nil && empty.lastWorker == nil && empty.steps.isEmpty)
     }
 
+    @Test func S2_fusion_leRicochetAttendSesDeuxCanonsEtLesConsommeAuLancement() {
+        // Quatre canons, deux ricochets à construire, chacun fait de deux canons niveau 2. Deux canons sont déjà au 2 :
+        // le 1er ricochet part à 0 et les consomme ; le 2e attend la fin des deux autres canons 2 (t = 20), même avec
+        // un ouvrier libre à 0. Quatre ouvriers.
+        let cannon = Rest.item(Rest.cannon, "buildings", .defenses, .builder, counts: [0, 1, 2, 4], max: [0, 1, 2, 3],
+                               levels: [(100, 10, []), (200, 20, []), (301, 30, [])])
+        let ricochet = Rest.item(Rest.ricochet, "buildings", .defenses, .builder, counts: [0, 0, 0, 2], max: [0, 0, 0, 1],
+                                 levels: [(1000, 100, [])],
+                                 mergedFrom: [Requirement(itemID: Rest.cannon, level: 2), Requirement(itemID: Rest.cannon, level: 2)])
+        let hut = Rest.item(P.hut, "buildings", .economy, .builder, counts: [0, 4, 4, 4], max: [0, 1, 1, 1], levels: [(0, 0, [])])
+        let reference = ReferenceData(items: [Rest.items[0], cannon, ricochet, hut], maxTownHall: 3)
+        let v = Rest.village([Mini.e(Rest.cannon, 2, 2), Mini.e(Rest.cannon, 1, 2), Mini.e(P.hut, 1, 4)], reference: reference)
+        let plan = makePlan(for: v, reference: reference, advice: AdviceData(), profile: S.free, now: Rest.date)
+        let labels = plan.steps.map { "\($0.step.itemID == Rest.ricochet ? "ricochet" : "cannon")\($0.step.level) \(S.offset($0.start))→\(S.offset($0.end))" }
+        #expect(labels == ["cannon2 0→20", "cannon2 0→20", "ricochet1 0→100", "ricochet1 20→120"])
+        #expect(plan.blocked.isEmpty)
+    }
+
+    @Test func S2_laLimiteDeHerosNeJoueQueSiUnOuvrierLibrePouvaitPrendreLeHeros() {
+        // Un seul ouvrier, un héros à la fois : la reine attend l'ouvrier, pas la limite. Date « au plus tôt ».
+        let items = [P.item(P.king, .heroes, section: "heroes", [S.lv(10), S.lv(100)]),
+                     P.item(P.queen, .heroes, section: "heroes", [S.lv(10), S.lv(100)])]
+        let heroes = ["heroes": [P.e(P.king, 1), P.e(P.queen, 1)]]
+        let plan = S.plan(items, heroes, huts: 1, profile: Profile(heroLimit: 1, quietHours: nil))
+        #expect(S.labels(plan) == ["king2 0→100", "queen2 100→200"])
+        #expect(!plan.heroLimitApplied)
+        // Deux ouvriers : la reine attend alors un ouvrier libre, à cause de la limite.
+        #expect(S.plan(items, heroes, huts: 2, profile: Profile(heroLimit: 1, quietHours: nil)).heroLimitApplied)
+    }
+
+    @Test func S7_toutEstFiniDansLaPhoto_pasDeCapDansLePasse() {
+        // Le dernier niveau du canon finissait 1 h après la photo ; `now` = photo + 8 j : rien ne reste à faire.
+        // Décision : le cap est nil (« tout est fait »), aucun poste n'a de fin à venir ; le minuteur reste dans `steps`.
+        let items = [P.item(P.cannon, .defenses, [S.lv(10), S.lv(100)])]
+        let plan = S.plan(items, ["buildings": [P.e(P.cannon, 1, timer: 3600)]], now: S.at(8 * 86_400))
+        #expect(S.labels(plan) == ["cannon2 0→3600"])
+        #expect(plan.cap == nil && plan.lastWorker == nil && plan.workerEnds.isEmpty)
+        // Un minuteur encore en cours à `now` : le cap est sa fin, dans le futur.
+        let running = S.plan(items, ["buildings": [P.e(P.cannon, 1, timer: 3600)]], now: S.at(1800))
+        #expect(running.cap == S.at(3600) && running.lastWorker == .builder)
+    }
+
+    @Test func S4_changementDHeureDePrintemps_heureDeParis() {
+        // Nuit du 27 au 28 mars 2027 : à 2 h, on passe à 3 h. Départ à 22 h 30, fin à 23 h 30, suivant à 7 h (heure d'été) :
+        // la nuit de 23 h 30 à 7 h dure 6 h 30 au lieu de 7 h 30.
+        let items = [P.item(P.cannon, .defenses, [S.lv(10), S.lv(3600), S.lv(3600)])]
+        let plan = S.plan(items, ["buildings": [P.e(P.cannon, 1)]], profile: Profile(), now: Réel.paris(2027, 3, 27, 22, 30, 0))
+        #expect(plan.steps.map(\.start) == [Réel.paris(2027, 3, 27, 22, 30, 0), Réel.paris(2027, 3, 28, 7, 0, 0)])
+        #expect(plan.steps[1].start.timeIntervalSince(plan.steps[0].end) == 6.5 * 3600)
+    }
+
+    @Test func S4_changementDHeureDAutomne_heureDeParis() {
+        // Nuit du 24 au 25 octobre 2026 : à 3 h, on revient à 2 h. La nuit de 23 h 30 à 7 h (heure d'hiver) dure 8 h 30.
+        let items = [P.item(P.cannon, .defenses, [S.lv(10), S.lv(3600), S.lv(3600)])]
+        let plan = S.plan(items, ["buildings": [P.e(P.cannon, 1)]], profile: Profile(), now: Réel.paris(2026, 10, 24, 22, 30, 0))
+        #expect(plan.steps.map(\.start) == [Réel.paris(2026, 10, 24, 22, 30, 0), Réel.paris(2026, 10, 25, 7, 0, 0)])
+        #expect(plan.steps[1].start.timeIntervalSince(plan.steps[0].end) == 8.5 * 3600)
+    }
+
     // MARK: - Trois villages calculés de tête
 
     @Test func villageDeTete1_deuxOuvriers() {
