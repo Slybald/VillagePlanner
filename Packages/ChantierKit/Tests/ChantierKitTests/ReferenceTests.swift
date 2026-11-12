@@ -51,7 +51,7 @@ import Testing
     /// Même entrée, mêmes octets : réécrire le fichier embarqué redonne exactement le même fichier.
     @Test func ecritureCanoniqueStable() throws {
         let url = try #require(ReferenceData.bundledURL)
-        #expect(try Rapport.encoder(Self.reference) == Data(contentsOf: url))
+        #expect(try Rapport.encoder(ReferenceData.load(from: url)) == Data(contentsOf: url))
     }
 
     @Test func chaqueIdentifiantDeLExportAUnNomEtUnPoste() {
