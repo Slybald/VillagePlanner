@@ -13,7 +13,7 @@ let package = Package(
         .executableTarget(name: "outils", dependencies: ["ChantierKit"]),
         .testTarget(
             name: "ChantierKitTests",
-            dependencies: ["ChantierKit"],
+            dependencies: ["ChantierKit", "outils"],
             resources: [.copy("Fixtures")]
         ),
     ]

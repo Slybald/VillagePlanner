@@ -16,10 +16,10 @@ Tous ces fichiers portent le tag factice `#2PP`. Ils sont tirés de `reel-hdv16.
 | `abime-02-tronque.json` | coupé au milieu | erreur `notJSON` |
 | `abime-03-pas-un-export.json` | JSON valide, sans `timestamp` ni section connue | erreur `notAVillageExport` |
 | `abime-04-sans-timestamp.json` | `timestamp` retiré | erreur `notAVillageExport` |
-| `abime-05-niveau-negatif.json` | `lvl` de la première troupe à -3 | lecture réussie ; cette entrée est écartée avec un avertissement (niveau invalide) |
-| `abime-06-cnt-zero.json` | `cnt` du premier piège à 0 | lecture réussie ; cette entrée est écartée avec un avertissement (nombre invalide) |
-| `abime-07-lvl-texte.json` | `lvl` du premier héros écrit `"quatre-vingt-cinq"` | lecture réussie ; cette entrée est écartée avec un avertissement (niveau illisible) |
-| `abime-08-5mo.json` | export valide + champ `bourrage` de 5 Mo | erreur `tooLarge`, sans décodage (limite 1 Mo) |
+| `abime-05-niveau-negatif.json` | `lvl` de la troupe `4000000` (section `units`) à -3 | lecture réussie ; l'entrée `units`/`4000000` est écartée (absente du résultat), les autres sont intactes ; exactement 1 avertissement, qui nomme l'identifiant `4000000` et le champ `lvl` |
+| `abime-06-cnt-zero.json` | `cnt` du piège `12000000` (section `traps`) à 0 | lecture réussie ; l'entrée `traps`/`12000000` est écartée ; exactement 1 avertissement, qui nomme l'identifiant `12000000` et le champ `cnt` |
+| `abime-07-lvl-texte.json` | `lvl` du héros `28000000` (section `heroes`) écrit `"quatre-vingt-cinq"` | lecture réussie ; l'entrée `heroes`/`28000000` est écartée ; exactement 1 avertissement, qui nomme l'identifiant `28000000` et le champ `lvl` |
+| `abime-08-5mo.json` | export valide (JSON bien formé) + champ `bourrage` de 5 Mo dans l'objet racine | erreur `tooLarge`, sans décodage (limite 1 Mo) : la taille est la seule raison du refus |
 
 ## Exports d'une version future
 
@@ -27,11 +27,13 @@ Aucun ne dépend du maximum actuel du jeu : les valeurs (`99`, `999`, identifian
 
 | Fichier | Altération | Résultat attendu |
 |---|---|---|
-| `futur-01-section-inconnue.json` | section `guardians_futurs` ajoutée | lecture réussie ; section conservée ; avertissement « section inconnue » |
-| `futur-02-identifiant-inconnu.json` | troupe `77777777` ajoutée dans `units` | lecture réussie ; entrée conservée ; avertissement « identifiant inconnu » (une fois les données de référence chargées) |
+| `futur-01-section-inconnue.json` | section `guardians_futurs` ajoutée | lecture réussie ; la section `guardians_futurs` est conservée ; exactement 1 avertissement, qui nomme la section `guardians_futurs` |
+| `futur-02-identifiant-inconnu.json` | troupe `77777777` ajoutée à la fin de `units` | lecture réussie ; l'entrée `units`/`77777777` est conservée ; 0 avertissement tant que T04 n'existe pas, puis exactement 1, qui nomme l'identifiant `77777777` et le champ `data` |
 | `futur-03-champ-inconnu.json` | champ `champ_futur` sur le premier héros | lecture réussie ; champ conservé dans `extras` ; pas d'erreur |
 | `futur-04-hdv-99.json` | hôtel de ville au niveau 99 | lecture réussie ; niveau 99 conservé tel quel |
-| `futur-05-niveau-999.json` | première troupe au niveau 999 | lecture réussie ; niveau 999 conservé ; avertissement « niveau au-dessus du maximum connu » (une fois les données de référence chargées) |
+| `futur-05-niveau-999.json` | `lvl` de la troupe `4000000` (section `units`) à 999 | lecture réussie ; l'entrée `units`/`4000000` est conservée avec le niveau 999 ; 0 avertissement tant que T04 n'existe pas, puis exactement 1, qui nomme l'identifiant `4000000` et le champ `lvl` |
 | `futur-06-section-connue-vide.json` | `spells` vaut `[]` | lecture réussie ; section vide, aucun sort ; pas d'erreur |
 
-Les avertissements « une fois les données de référence chargées » viennent de T04 ; avant, le lecteur ne les produit pas.
+Les avertissements « identifiant inconnu » et « niveau au-dessus du maximum » ne peuvent venir qu'après T04 (données de référence) ; avant, le lecteur n'en produit aucun.
+
+Un avertissement nomme toujours l'identifiant (`data`) et le champ en cause ; « écartée » veut dire absente du résultat, jamais corrigée. `outils anonymiser` refuse d'écrire si un tag apparaît ailleurs que dans un champ `tag` (par exemple dans un texte).

@@ -22,15 +22,18 @@ import Testing
 
         let motif = try NSRegularExpression(pattern: ##""tag"\s*:\s*"(#[^"]*)""##)
         var trouvés: [String] = []
+        var lus = 0
         for chemin in String(decoding: données, as: UTF8.self).split(separator: "\0") {
             guard let octets = try? Data(contentsOf: racine.appendingPathComponent(String(chemin))),
                   let texte = String(data: octets, encoding: .isoLatin1) else { continue }
+            lus += 1
             let plein = NSRange(texte.startIndex..., in: texte)
             for m in motif.matches(in: texte, range: plein) {
                 let valeur = String(texte[Range(m.range(at: 1), in: texte)!])
                 if valeur != "#2PP" { trouvés.append("\(chemin) : un tag autre que #2PP") }
             }
         }
+        #expect(lus > 0, "aucun fichier lu : le garde-fou ne vérifie rien")
         return trouvés
     }
 

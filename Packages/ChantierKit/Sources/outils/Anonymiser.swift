@@ -1,11 +1,12 @@
 import Foundation
 
-/// Remplace le tag racine par `#2PP`, touche à rien d'autre, et refuse tout autre tag restant.
+/// Remplace la valeur de chaque champ "tag" par `#2PP`, touche à rien d'autre, et refuse d'écrire
+/// si un tag reste ailleurs (un tag hors d'un champ "tag", par exemple dans un texte, fait refuser l'écriture).
 enum Anonymiser {
     static let tagFactice = "#2PP"
-    // Un tag de joueur : `#` suivi de 3 caractères ou plus parmi 0-9 et A-Z (lettres du jeu).
-    private static let motifTag = #"#[0-9A-Z]{3,}"#
-    private static let motifChampTag = ##""tag"\s*:\s*"#[0-9A-Z]{3,}""##
+    // Un tag de joueur : `#` suivi de 3 caractères alphanumériques ou plus, majuscules ou minuscules.
+    private static let motifTag = #"#[0-9A-Za-z]{3,}"#
+    private static let motifChampTag = ##"("tag"\s*:\s*)"#[0-9A-Za-z]{3,}""##
 
     enum Erreur: Error, CustomStringConvertible {
         case illisible(String)
@@ -26,8 +27,7 @@ enum Anonymiser {
         let plein = NSRange(texte.startIndex..., in: texte)
         guard champ.firstMatch(in: texte, range: plein) != nil else { throw Erreur.aucunTag }
         let sortie = champ.stringByReplacingMatches(
-            in: texte, range: plein, withTemplate: "\"tag\":\"\(tagFactice)\"")
-        // Le template ci-dessus normalise `"tag" : "…"` en `"tag":"#2PP"` ; l'export réel est déjà compact.
+            in: texte, range: plein, withTemplate: "$1\"\(tagFactice)\"")
         let tags = try NSRegularExpression(pattern: motifTag)
         let restants = tags.matches(in: sortie, range: NSRange(sortie.startIndex..., in: sortie))
             .filter { (Range($0.range, in: sortie).map { String(sortie[$0]) }) != tagFactice }
