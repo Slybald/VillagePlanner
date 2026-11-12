@@ -147,7 +147,7 @@ struct SectionConseiller: View {
         case .timeout: "Pas de réponse en 20 secondes. Réessaie plus tard."
         case .invalidResponse: "Réponse illisible. Réessaie plus tard."
         case .refusal: "Le modèle a décliné la demande."
-        case .budgetReached(.daily): "Plafond du jour atteint (\(Budget.callsPerDay) appels). Il revient demain."
+        case .budgetReached(.daily): "Plafond du jour atteint (\(Budget.callsPerDay) appels), à la date de l'iPhone recalée sur celle d'Anthropic. Il revient le jour suivant."
         case .budgetReached(.monthly): "Plafond du mois atteint (1\u{00A0}$). Il revient le mois prochain."
         }
     }

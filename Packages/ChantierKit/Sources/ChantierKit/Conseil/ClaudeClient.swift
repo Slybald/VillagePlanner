@@ -121,7 +121,13 @@ public actor ClaudeClient {
         let worst = Self.worstCase(maxTokens: maxTokens, bodyBytes: body.count)
 
         for attempt in 1...2 {
-            if let limit = budgetStore.reserveCall(at: now, calendar: calendar, worstCase: worst) { throw .budgetReached(limit) }
+            var limit = budgetStore.reserveCall(at: now, calendar: calendar, worstCase: worst)
+            // Bloqué par une date plus récente que l'horloge : peut-être une horloge mise dans le futur puis remise à l'heure.
+            if limit != nil, let latest = budgetStore.load().latest, latest > now.addingTimeInterval(Budget.clockTolerance),
+               await recalerHorloge() {
+                limit = budgetStore.reserveCall(at: now, calendar: calendar, worstCase: worst)
+            }
+            if let limit { throw .budgetReached(limit) }
             let data: Data, response: URLResponse
             do { (data, response) = try await transport.send(request) } catch {
                 // Délai dépassé, connexion perdue, réponse trop grosse : la requête a peut-être été traitée, le pire reste compté.
@@ -129,6 +135,7 @@ public actor ClaudeClient {
                 throw Self.transportError(error)
             }
             guard let http = response as? HTTPURLResponse else { throw .invalidResponse }
+            if let date = Self.serverDate(http) { budgetStore.correctClock(serverDate: date, calendar: calendar) }
             if http.statusCode != 200 { settle(worst, actual: 0, now: now) }    // une erreur HTTP n'est pas facturée
             switch http.statusCode {
             case 200: return try read(data, as: Output.self, reserved: worst, now: now)
@@ -143,12 +150,32 @@ public actor ClaudeClient {
         throw .rateLimited
     }
 
+    /// La date du service, lue dans l'en-tête `Date` d'une requête sans clé (ni coût ni appel compté) ; vrai si le budget a été recalé.
+    private func recalerHorloge() async -> Bool {
+        var r = URLRequest(url: URL(string: "https://api.anthropic.com/")!, cachePolicy: .reloadIgnoringLocalCacheData,
+                           timeoutInterval: Double(timeout.components.seconds))
+        r.httpMethod = "HEAD"
+        guard let (_, response) = try? await transport.send(r), let http = response as? HTTPURLResponse,
+              let date = Self.serverDate(http) else { return false }
+        return budgetStore.correctClock(serverDate: date, calendar: calendar)
+    }
+
+    /// L'en-tête `Date` (protégé par TLS), au format HTTP.
+    static func serverDate(_ response: HTTPURLResponse) -> Date? {
+        guard let texte = response.value(forHTTPHeaderField: "Date") else { return nil }
+        let f = DateFormatter()                              // `Date.HTTPFormatStyle` demande macOS 26
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .gmt
+        f.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        return f.date(from: texte)
+    }
+
     /// Le plus petit appel utile : vérifie la clé depuis les Réglages (une fraction de centième de centime).
     public func checkKey(now: Date) async throws(ClaudeError) {
         struct Reponse: Decodable { let ok: Bool }
         let schema = #"{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}"#
         _ = try await ask(system: "Réponds au format demandé.", prompt: "Réponds ok à vrai.", schema: schema,
-                          as: Reponse.self, maxTokens: 512, now: now)
+                          as: Reponse.self, maxTokens: 1_024, now: now)   // la réflexion compte dans max_tokens
     }
 
     // MARK: Budget
@@ -203,11 +230,13 @@ public actor ClaudeClient {
 
     static func transportError(_ error: any Error) -> ClaudeError {
         if error is ResponseTooLarge { return .invalidResponse }
-        return (error as? URLError)?.code == .timedOut ? .timeout : .offline
+        if error is CancellationError { return .timeout }
+        return [.timedOut, .cancelled].contains((error as? URLError)?.code) ? .timeout : .offline
     }
 
     static func mayHaveBeenBilled(_ error: any Error) -> Bool {
-        error is ResponseTooLarge || [.timedOut, .networkConnectionLost].contains((error as? URLError)?.code)
+        error is ResponseTooLarge || error is CancellationError
+            || [.timedOut, .networkConnectionLost, .cancelled].contains((error as? URLError)?.code)
     }
 
     // MARK: Réponse

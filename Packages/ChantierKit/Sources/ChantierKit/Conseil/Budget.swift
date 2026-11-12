@@ -87,15 +87,35 @@ public struct Budget: Codable, Sendable, Equatable {
     /// Le budget tel qu'il se lit à `now`, ou à la date la plus récente déjà vue si l'horloge a reculé.
     public func at(_ now: Date, calendar: Calendar) -> Budget {
         let t = max(now, latest ?? now)
-        let c = calendar.dateComponents([.year, .month, .day], from: t)
-        let m = String(format: "%04d-%02d", c.year ?? 0, c.month ?? 0)
-        let d = m + String(format: "-%02d", c.day ?? 0)
+        let (d, m) = Self.keys(t, calendar)
         var b = self
-        if b.month != m { b.month = m; b.spentThisMonth = 0 }
-        if b.day != d { b.day = d; b.callsToday = 0 }
+        // Seulement en avançant : changer de fuseau au même instant ne remet rien à zéro.
+        if m > b.month { b.month = m; b.spentThisMonth = 0 }
+        if d > b.day { b.day = d; b.callsToday = 0 }
         b.latest = t
         return b
     }
+
+    /// « 2026-11-12 » et « 2026-11 » : des chaînes de largeur fixe, qui se comparent dans l'ordre du temps.
+    static func keys(_ date: Date, _ calendar: Calendar) -> (day: String, month: String) {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        let m = String(format: "%04d-%02d", c.year ?? 0, c.month ?? 0)
+        return (m + String(format: "-%02d", c.day ?? 0), m)
+    }
+
+    /// L'appareil avait une date en avance de plus d'un jour sur celle du service : on revient à celle du service.
+    /// Les appels et la dépense déjà comptés restent, rangés sous le jour et le mois du service.
+    mutating func correctClock(serverDate: Date, calendar: Calendar) -> Bool {
+        guard let latest, latest > serverDate.addingTimeInterval(Self.clockTolerance) else { return false }
+        self.latest = serverDate
+        let (d, m) = Self.keys(serverDate, calendar)
+        day = min(day, d)
+        month = min(month, m)
+        return true
+    }
+
+    /// L'écart toléré entre l'horloge de l'appareil et celle du service.
+    public static let clockTolerance: TimeInterval = 86_400
 
     /// La barrière atteinte à `now` pour un appel qui peut coûter jusqu'à `cost`, ou nil s'il peut partir.
     public func limitReached(at now: Date, calendar: Calendar, cost: Int = 0) -> BudgetLimit? {
@@ -162,8 +182,19 @@ public struct BudgetStore: @unchecked Sendable {   // UserDefaults est sûr entr
         }
     }
 
+    /// Recale la date sur celle du service ; vrai si elle a changé.
+    @discardableResult
+    public func correctClock(serverDate: Date, calendar: Calendar) -> Bool {
+        Self.verrou.withLock { _ in
+            var b = load()
+            guard b.correctClock(serverDate: serverDate, calendar: calendar) else { return false }
+            save(b)
+            return true
+        }
+    }
+
     /// Remplace la réservation par le coût réel (0 si le service n'a rien facturé).
-    /// shortcut: si l'app s'arrête entre la réservation et ce règlement, le pire coût reste compté (au plus 0,002 $ par appel).
+    /// shortcut: si l'app s'arrête entre la réservation et ce règlement, le pire coût reste compté (environ 0,0035 $ pour une requête de 14 Ko).
     public func settle(reserved: Int, actual: Int, at now: Date, calendar: Calendar) {
         Self.verrou.withLock { _ in
             var b = load().at(now, calendar: calendar)

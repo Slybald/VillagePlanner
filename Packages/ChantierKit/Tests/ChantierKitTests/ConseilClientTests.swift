@@ -24,8 +24,14 @@ enum Reponse: Sendable {
     case http(Int, [String: String] = [:], Data = Data())
     case panne(URLError.Code)
     case trop                                   // corps au-delà de la limite du transport
+    case annulee                                // tâche annulée pendant l'envoi
 
     /// Une réponse 200 de l'API Messages : un bloc `thinking` vide en tête, comme Haiku 5.5 peut en renvoyer.
+    static func okDate(_ date: String) -> Reponse {
+        guard case .http(let s, _, let corps) = ok() else { fatalError() }
+        return .http(s, ["Date": date], corps)
+    }
+
     static func ok(_ texte: String? = #"{"ok":true}"#, stop: String = "end_turn", categorie: String? = nil,
                    entree: Int = 3_500, sortie: Int = 900, cacheLu: Int = 0, cacheEcrit: Int = 0) -> Reponse {
         var contenu: [[String: Any]] = [["type": "thinking", "thinking": "", "signature": "sig"]]
@@ -54,6 +60,7 @@ actor FauxTransport: HTTPTransport {
         switch r {
         case .panne(let code): throw URLError(code)
         case .trop: throw ResponseTooLarge()
+        case .annulee: throw CancellationError()
         case .http(let statut, let entetes, let corps):
             return (corps, HTTPURLResponse(url: request.url!, statusCode: statut, httpVersion: "HTTP/1.1", headerFields: entetes)!)
         }
@@ -73,13 +80,13 @@ private struct Banc {
     let defaults: UserDefaults
     let budget: BudgetStore
 
-    init(cle: String? = cleFactice, budget depart: Budget = Budget(), reponses: [Reponse] = []) {
+    init(cle: String? = cleFactice, budget depart: Budget = Budget(), reponses: [Reponse] = [], calendrier: Calendar = paris) {
         defaults = UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!
         budget = BudgetStore(defaults: defaults)
         budget.save(depart)
         transport = FauxTransport(reponses)
         let attentes = attentes
-        client = ClaudeClient(keys: MemorySecretStore(cle), budget: budget, transport: transport, calendar: paris,
+        client = ClaudeClient(keys: MemorySecretStore(cle), budget: budget, transport: transport, calendar: calendrier,
                               sleep: { await attentes.noter($0) })
     }
 
@@ -162,8 +169,8 @@ struct Cas: Sendable, CustomTestStringConvertible {
             attendu: .failure(.budgetReached(.monthly)), envois: 0),
         Cas(nom: "30 appels le 12, horloge reculée au 11 : refusé, rien ne part", budget: depart(appels: 30), now: le(11),
             attendu: .failure(.budgetReached(.daily)), envois: 0),
-        Cas(nom: "1 $ en novembre, horloge reculée en octobre : refusé, rien ne part", budget: depart(depense: 1_000_000_000), now: le(20, 10),
-            attendu: .failure(.budgetReached(.monthly)), envois: 0),
+        Cas(nom: "1 $ en novembre, horloge reculée en octobre : refusé, seule la sonde d'horloge part (sans clé)",
+            budget: depart(depense: 1_000_000_000), now: le(20, 10), attendu: .failure(.budgetReached(.monthly)), envois: 1),
         Cas(nom: "1 $ ce mois : refusé, rien ne part", budget: depart(depense: 1_000_000_000),
             attendu: .failure(.budgetReached(.monthly)), envois: 0),
         Cas(nom: "1 $ le mois dernier : nouveau mois, accepté", budget: depart(depense: 1_000_000_000, le: le(31, 10)),
@@ -227,7 +234,7 @@ struct Cas: Sendable, CustomTestStringConvertible {
         #expect(banc.budget.load().at(maintenant, calendar: paris).callsToday == 1)
         let envoi = try #require(await banc.transport.requetes.first?.httpBody)
         let corps = try #require(JSONSerialization.jsonObject(with: envoi) as? [String: Any])
-        #expect(corps["max_tokens"] as? Int == 512)
+        #expect(corps["max_tokens"] as? Int == 1_024)   // la réflexion de Haiku 5.5 compte dans max_tokens
     }
 
     // MARK: Budget
@@ -267,7 +274,7 @@ struct Cas: Sendable, CustomTestStringConvertible {
     }
 
     /// Délai dépassé ou connexion perdue : la requête a peut-être été traitée, donc facturée.
-    @Test(arguments: [URLError.Code.timedOut, .networkConnectionLost])
+    @Test(arguments: [URLError.Code.timedOut, .networkConnectionLost, .cancelled])
     func budget_reponsePerdue_compteeAuPire(_ code: URLError.Code) async throws {
         let banc = Banc(reponses: [.panne(code)])
         _ = await banc.demander()
@@ -297,6 +304,63 @@ struct Cas: Sendable, CustomTestStringConvertible {
         let banc = Banc(budget: depart(depense: 500_000_000))
         _ = await banc.demander(now: le(20, 10))                       // horloge en octobre
         #expect(banc.budget.load().at(maintenant, calendar: paris).spentThisMonth >= 500_000_000)
+    }
+
+    @Test func budget_tacheAnnulee_coutAuPireGarde() async throws {
+        let banc = Banc(reponses: [.annulee])
+        #expect(await banc.demander() == .failure(.timeout))
+        #expect(banc.budget.load().spentThisMonth == (try await pire(banc)))
+    }
+
+    // MARK: Fuseau et horloge
+
+    private static func fuseau(_ id: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: id)!
+        return c
+    }
+
+    @Test func fuseauChange_auMemeInstant_lesAppelsNeRepartentPasAZero() async {
+        // 30 appels à 10 h à Paris ; au même instant, il est la veille 21 h en Etc/GMT+12.
+        let banc = Banc(budget: depart(appels: 30), calendrier: Self.fuseau("Etc/GMT+12"))
+        #expect(await banc.demander() == .failure(.budgetReached(.daily)))
+        #expect(await banc.transport.requetes.isEmpty)
+    }
+
+    @Test func fuseauChange_enFinDeMois_laDepenseNeRepartPasAZero() {
+        let instant = paris.date(from: DateComponents(timeZone: .gmt, year: 2026, month: 11, day: 30, hour: 12))!
+        var b = Budget()
+        b.recordCost(1_000_000_000, at: instant, calendar: Self.fuseau("Etc/GMT-14"))      // déjà le 1er décembre
+        #expect(b.limitReached(at: instant, calendar: Self.fuseau("Etc/GMT+12")) == .monthly)   // encore le 30 novembre
+    }
+
+    private static let dateServeur = "Thu, 12 Nov 2026 09:00:00 GMT"                      // 10 h à Paris
+
+    @Test func horlogeMiseDansLeFutur_recaleeSurLaDateDuService_sansCle() async throws {
+        // 30 appels enregistrés un an trop tard ; l'horloge est revenue à la bonne date. Les 30 appels restent comptés
+        // pour le jour du service (bloqué jusqu'au lendemain, plus jusqu'à l'an prochain).
+        let banc = Banc(budget: depart(appels: 30, le: le(12, 11).addingTimeInterval(365 * 86_400)),
+                        reponses: [.http(404, ["Date": Self.dateServeur]), .ok()])
+        #expect(await banc.demander() == .failure(.budgetReached(.daily)))
+        #expect(banc.budget.load().latest == le(12, 11, 10) && banc.budget.load().day == "2026-11-12")
+        #expect(await banc.demander(now: le(13)) == .success(true))
+        let requetes = await banc.transport.requetes
+        #expect(requetes.count == 2)
+        #expect(requetes.first?.value(forHTTPHeaderField: "x-api-key") == nil)               // la sonde n'emporte pas la clé
+        #expect(requetes.first?.url?.host == "api.anthropic.com")
+    }
+
+    @Test func horlogeReculee_leServiceConfirmeLaDate_resteBloque() async {
+        let banc = Banc(budget: depart(appels: 30, depense: 1_000_000_000), reponses: [.http(404, ["Date": "Fri, 13 Nov 2026 09:00:00 GMT"])])
+        #expect(await banc.demander(now: le(20, 10)) == .failure(.budgetReached(.monthly)))
+        #expect(await banc.transport.requetes.count == 1)                                     // la sonde seulement
+    }
+
+    @Test func dateDuServiceDansUneReponse_ramenteUneHorlogeEnAvance() async throws {
+        let futur = le(12, 11).addingTimeInterval(365 * 86_400)
+        let banc = Banc(budget: depart(appels: 1, le: futur), reponses: [.okDate(Self.dateServeur)])
+        _ = await banc.demander()
+        #expect(banc.budget.load().latest == le(12, 11, 10))
     }
 
     @Test func reponseTropGrosse_couperAu_dela_d_un_Mo() async throws {
