@@ -24,14 +24,14 @@ public struct AdviceData: Sendable, Codable, Equatable {
         self.lists = lists
     }
 
-    public static let listNames = ["defenses", "laboratory", "equipment", "pets"]
+    public static let listNames = AdviceList.Name.allCases.map(\.rawValue)
 
     /// Position (0 = en premier) de `id` dans la liste `list` ; nil s'il n'y est pas.
-    public func rank(of id: Int, in list: String) -> Int? { lists[list]?.ids.firstIndex(of: id) }
+    public func rank(of id: Int, in list: AdviceList.Name) -> Int? { lists[list.rawValue]?.ids.firstIndex(of: id) }
 
     /// Classe `items` : d'abord ceux de la liste dans son ordre, puis les autres du moins cher au plus cher,
-    /// puis par identifiant (résultat toujours le même).
-    public func sorted<T>(_ items: [T], in list: String, id: (T) -> Int, cost: (T) -> Int) -> [T] {
+    /// puis par identifiant (résultat toujours le même). Le coût est un `CostKey` (règle `fallback`) ou un nombre.
+    public func sorted<T, C: Comparable>(_ items: [T], in list: AdviceList.Name, id: (T) -> Int, cost: (T) -> C) -> [T] {
         items.sorted { a, b in
             let (ra, rb) = (rank(of: id(a), in: list), rank(of: id(b), in: list))
             switch (ra, rb) {
@@ -45,10 +45,27 @@ public struct AdviceData: Sendable, Codable, Equatable {
 }
 
 public struct AdviceList: Sendable, Codable, Equatable {
+    /// Les quatre listes : un nom mal écrit ne compile pas, au lieu de basculer en silence sur le repli.
+    public enum Name: String, Sendable, CaseIterable { case defenses, laboratory, equipment, pets }
+
     /// Une phrase : le critère de classement.
     public let criterion: String
     public let sources: [String]
     public let ids: [Int]
+}
+
+/// « Le moins cher d'abord » (règle `fallback` de conseils.json) : le coût du prochain niveau, comparé ressource par
+/// ressource de la plus rare à la plus commune, sans taux de change inventé. Un niveau sans coût (niveau 1 débloqué
+/// par un bâtiment) vaut zéro ; pas de prochain niveau (nil) : en dernier.
+public struct CostKey: Comparable, Sendable {
+    public static let rarity: [Resource] = [.starryOre, .glowyOre, .shinyOre, .darkElixir, .elixir, .gold]
+    let amounts: [Int]
+
+    public init(_ costs: [ResourceAmount]?) {
+        amounts = Self.rarity.map { r in costs.map { $0.filter { $0.resource == r }.reduce(0) { $0 + $1.amount } } ?? .max }
+    }
+
+    public static func < (a: CostKey, b: CostKey) -> Bool { a.amounts.lexicographicallyPrecedes(b.amounts) }
 }
 
 public enum AdviceError: Error, Equatable {

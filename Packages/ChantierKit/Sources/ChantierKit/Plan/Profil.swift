@@ -17,16 +17,28 @@ public struct Reduction: Sendable, Equatable, Codable {
 }
 
 /// Le profil de jeu : orientation, héros, épingles, heures sans jeu, réductions.
-/// T10 ne porte que les réductions ; les autres réglages arrivent avec T12, T13 et T17.
+/// Les heures sans jeu arrivent avec T13.
 public struct Profile: Sendable, Equatable, Codable {
     /// Ouvriers : bâtiments, pièges, murs, héros.
     public var builderReduction: Reduction?
     /// Laboratoire seulement (PLAN §5.2) : ni la Maison des familiers ni la forge.
     public var laboratoryReduction: Reduction?
+    public var orientation: Orientation
+    /// Héros en amélioration en même temps ; nil : pas de limite.
+    public var heroLimit: Int?
+    /// Identifiants des types épinglés (« je veux ça d'abord ») : en tête de leur poste.
+    public var pinned: Set<Int>
+    public var nextTownHallThreshold: TownHallThreshold
 
-    public init(builderReduction: Reduction? = nil, laboratoryReduction: Reduction? = nil) {
+    public init(builderReduction: Reduction? = nil, laboratoryReduction: Reduction? = nil,
+                orientation: Orientation = .balanced, heroLimit: Int? = nil, pinned: Set<Int> = [],
+                nextTownHallThreshold: TownHallThreshold = .complete) {
         self.builderReduction = builderReduction
         self.laboratoryReduction = laboratoryReduction
+        self.orientation = orientation
+        self.heroLimit = heroLimit
+        self.pinned = pinned
+        self.nextTownHallThreshold = nextTownHallThreshold
     }
 
     /// Pourcentage de réduction d'une amélioration lancée à `date` par ce poste.
