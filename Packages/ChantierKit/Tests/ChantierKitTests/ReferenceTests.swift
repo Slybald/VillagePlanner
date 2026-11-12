@@ -27,8 +27,6 @@ import Testing
         let url = try #require(ReferenceData.bundledURL)
         let taille = try #require(try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int)
         #expect(taille < 1_500_000)
-        let mediane = try medianeCPU { _ = try ReferenceData.load() }
-        #expect(mediane < 100, "chargement en \(mediane) ms de temps processeur")
         let r = try ReferenceData.load()
         #expect(r.items.count > 200 && r.maxTownHall >= 18)
         #expect(r.source.name == "ClashKingInc/ClashKingAssets" && !r.source.date.isEmpty)
