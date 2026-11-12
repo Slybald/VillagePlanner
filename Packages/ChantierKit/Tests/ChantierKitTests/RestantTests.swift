@@ -374,4 +374,45 @@ extension [UpgradeStep] {
         // Rien de l'HDV : il est au maximum de l'HDV 16.
         #expect(s.of(Village.townHallID).isEmpty)
     }
+
+    // MARK: - Affichage (Lisible)
+
+    @Test func lisible_dureeEnJoursEtHeures() {
+        let n = "\u{00A0}"
+        #expect(Lisible.duree(5_356_172) == "61" + n + "j" + n + "23" + n + "h")      // 61 j 23 h 49 min : minutes tues au-delà d'un jour
+        #expect(Lisible.duree(151_537_644) == "1\u{202F}753" + n + "j" + n + "21" + n + "h")
+        #expect(Lisible.duree(86_400) == "1" + n + "j")
+        #expect(Lisible.duree(19_200) == "5" + n + "h" + n + "20" + n + "min")
+        #expect(Lisible.duree(720) == "12" + n + "min" && Lisible.duree(0) == "moins d'une" + n + "min")
+    }
+
+    @Test func lisible_montants() {
+        let n = "\u{00A0}"
+        #expect(Lisible.montant(512_560) == "512\u{202F}560" && Lisible.montant(3_460) == "3\u{202F}460")
+        #expect(Lisible.montant(162_000_000) == "162" + n + "M" && Lisible.montant(723_200_000) == "723,2" + n + "M")
+        #expect(Lisible.montant(1_636_500_000) == "1,64" + n + "Md")
+        #expect(Lisible.cout(26_286_500, .darkElixir) == "26,29" + n + "M" + n + "d'élixir" + n + "noir")
+        #expect(Lisible.cout(512_560, .shinyOre) == "512\u{202F}560" + n + "de" + n + "minerai" + n + "brillant")
+    }
+
+    @Test func lisible_resumeEnCoursSansCoutEtMinuteurIllisible() {
+        // Roi réel : minuteur de 258 572 s puis neuf niveaux. Arc-X : deux en cours (372 461 s), rien à payer.
+        let n = "\u{00A0}"
+        #expect(Lisible.resume(Self.réel(28000000)) == "Reste 61" + n + "j" + n + "23" + n + "h · 2,46" + n + "M" + n + "d'élixir" + n + "noir")
+        #expect(Lisible.resume(Self.réel(1000021)) == "Reste 4" + n + "j" + n + "7" + n + "h · rien à payer")
+        let illisible = ExportEntry(id: Rest.cannon, level: 2, count: 1, timer: nil, extras: ["timer": .string("?")])
+        let seul = Rest.steps(Rest.village([illisible, e(Rest.cannon, 3)]))
+        #expect(Lisible.resume(seul.of(Rest.cannon)) == "Fin du minuteur inconnue · rien à payer")
+        #expect(Lisible.resume([]) == nil)
+        // Murs : pas de durée, un coût, pour 225 exemplaires.
+        #expect(Lisible.resume(Self.réel(1000010), exemplaires: 225) == "À payer 1,13" + n + "Md" + n + "d'or (pour les 225)")
+    }
+
+    @Test func lisible_mentionDeLaReductionSeulementTantQuElleCourt() {
+        let fin = Rest.date.addingTimeInterval(100)
+        let profil = Profile(builderReduction: Reduction(percent: 20, endsAt: fin))
+        #expect(Lisible.reductions(Profile(), at: Rest.date) == nil)
+        #expect(Lisible.reductions(profil, at: Rest.date) == "Avec la réduction actuelle : ouvriers −20\u{00A0}%.")
+        #expect(Lisible.reductions(profil, at: fin) == nil)
+    }
 }

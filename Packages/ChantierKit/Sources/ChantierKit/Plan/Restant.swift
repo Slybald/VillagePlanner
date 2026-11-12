@@ -43,6 +43,9 @@ public struct UpgradeStep: Sendable, Equatable {
     /// nil quand le minuteur est illisible.
     public let remaining: Int?
     public let requires: [Requirement]
+    /// Le groupe d'exemplaires d'où vient ce pas (dans un groupe scindé par Q6, la part concernée) :
+    /// l'écran retrouve ainsi les pas d'un élément qu'il affiche.
+    public let element: Element
 
     public var isInProgress: Bool { if case .inProgress = status { true } else { false } }
 }
@@ -105,7 +108,7 @@ public func remainingSteps(of village: Village, reference: ReferenceData, profil
                                alternativeResource: ref?.alternativeResource, duration: duration,
                                baseCosts: baseCosts, baseDuration: baseDuration,
                                reductionPercent: todo ? percent : 0, remaining: remaining,
-                               requires: ref?.requires ?? [])
+                               requires: ref?.requires ?? [], element: element)
         }
         var next = element.level + 1
         if element.upgrading, next <= element.maxLevel {                      // Q2
