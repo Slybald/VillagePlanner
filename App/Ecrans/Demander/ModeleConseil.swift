@@ -11,6 +11,8 @@ final class ModeleConseil {
     /// Le dernier conseil accepté, et la clé sous laquelle il a été obtenu.
     private(set) var texte: String?
     private(set) var cleDuTexte: String?
+    /// Le conseil ne vaut plus quand le premier lancement a commencé.
+    private(set) var jusqua: Date?
     @ObservationIgnored private var enCours: String?
     @ObservationIgnored private let conseiller: Conseiller
     @ObservationIgnored private var exempleAutorise = false
@@ -42,22 +44,28 @@ final class ModeleConseil {
     func cle(_ affiche: VillageAffiche, reference: ReferenceData, conseilsDate: String) -> String? {
         guard let plan = affiche.plan, let photo = affiche.photo?.date ?? (exempleAutorise ? affiche.village.date : nil) else { return nil }
         return CleConseil.make(photo: photo, profil: plan.profil, referenceCommit: reference.source.commit, conseilsDate: conseilsDate,
+                               etatDuPlan: ResumeConseil.etatDuPlan(plan.plan, reference: reference, photo: plan.photo),
                                now: plan.maintenant, timeZone: plan.fuseau)
     }
 
-    /// Le conseil s'il est celui de cette clé, sinon la consigne du moteur (G3) : un conseil périmé ne se montre jamais.
-    func consigne(moteur: String, cle: String?) -> String { texteGarde(cle: cle) ?? moteur }
-    func estConseil(cle: String?) -> Bool { texteGarde(cle: cle) != nil }
+    /// Le conseil s'il est celui de cette clé et que son premier lancement n'a pas commencé, sinon la consigne du moteur (G3) :
+    /// un conseil périmé ne se montre jamais.
+    func consigne(moteur: String, cle: String?, now: Date) -> String { texteGarde(cle: cle, now: now) ?? moteur }
+    func estConseil(cle: String?, now: Date) -> Bool { texteGarde(cle: cle, now: now) != nil }
 
-    private func texteGarde(cle: String?) -> String? { cle != nil && cle == cleDuTexte ? texte : nil }
+    private func texteGarde(cle: String?, now: Date) -> String? {
+        guard cle != nil, cle == cleDuTexte, jusqua.map({ now < $0 }) ?? true else { return nil }
+        return texte
+    }
 
     /// Demande le conseil de cette clé si on ne l'a pas. La demande va jusqu'au bout même si l'écran disparaît
     /// (une requête annulée serait comptée au budget sans rien rapporter).
     func rafraichir(_ affiche: VillageAffiche, reference: ReferenceData, conseilsDate: String) {
         guard let plan = affiche.plan, let cle = cle(affiche, reference: reference, conseilsDate: conseilsDate),
               cleDuTexte != cle, enCours != cle else { return }
-        if let garde = conseiller.garde(pour: cle) {                    // rouvrir sans changement : rien ne part
-            texte = garde
+        if let garde = conseiller.garde(pour: cle, now: plan.maintenant) {      // rouvrir sans changement : rien ne part
+            texte = garde.texte
+            jusqua = garde.jusqua
             cleDuTexte = cle
             return
         }
@@ -65,38 +73,37 @@ final class ModeleConseil {
                                         profil: plan.profil, reference: reference, photo: plan.photo, consigneMoteur: plan.consigne,
                                         changements: affiche.changements, timeZone: plan.fuseau)
         #if DEBUG
-        fausseApi?.texte.withLock { $0 = Self.texteDeCapture(resume, plan, reference) }
+        fausseApi?.reponse.withLock { $0 = Self.reponseDeCapture(resume) }
         #endif
         enCours = cle
         Task {
             let issue = await conseiller.obtenir(resume: resume, cle: cle, reference: reference, now: Date())
             if enCours == cle { enCours = nil }
             // Seul un conseil accepté se garde à l'écran ; un échec laisse le moteur, et sera retenté plus tard (délai du conseiller).
-            if case .conseil(let t) = issue { texte = t; cleDuTexte = cle }
+            if case .conseil(let t, let jusqua) = issue { texte = t; self.jusqua = jusqua; cleDuTexte = cle }
         }
     }
 
     #if DEBUG
-    /// La réponse de la fausse API : les premières phrases de la consigne du moteur, puis la raison de la première amélioration.
-    private static func texteDeCapture(_ resume: ResumeConseil, _ plan: PlanAffiche, _ reference: ReferenceData) -> String {
-        let phrases = plan.consigne.split(separator: ".").prefix(2).joined(separator: ".") + "."
-        guard let id = plan.plan.steps.first(where: { !$0.fromSnapshot })?.step.itemID, let nom = reference.name(of: id),
-              let raison = resume.texte.components(separatedBy: "Raison : ").dropFirst().first?.split(separator: ".").first else { return phrases }
-        return phrases + " \(nom) d'abord : \(raison)."
+    /// La réponse de la fausse API : le premier lancement du plan, une raison toute prête, le second lancement.
+    private static func reponseDeCapture(_ resume: ResumeConseil) -> String {
+        let premier = resume.candidats.first?.id ?? 0
+        let ensuite: Any = resume.candidats.dropFirst().first { $0.id != premier }.map { $0.id as Any } ?? NSNull()
+        let json = try? JSONSerialization.data(withJSONObject: ["premier": premier, "raison": "elle débloque d'autres améliorations", "ensuite": ensuite])
+        return String(decoding: json ?? Data(), as: UTF8.self)
     }
     #endif
 }
 
 #if DEBUG
-/// Un « service » qui répond toujours par `texte`, au format d'une réponse de l'API Messages. Captures seulement.
+/// Un « service » qui répond toujours par `reponse`, au format d'une réponse de l'API Messages. Captures seulement.
 final class FausseApi: HTTPTransport {
-    let texte = Mutex("")
+    let reponse = Mutex("")
 
     func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        let reponse = try JSONSerialization.data(withJSONObject: ["texte": texte.withLock { $0 }, "ids": [Int]()])
         let corps: [String: Any] = [
             "id": "msg_capture", "type": "message", "role": "assistant", "model": ClaudeClient.model,
-            "content": [["type": "text", "text": String(decoding: reponse, as: UTF8.self)]], "stop_reason": "end_turn",
+            "content": [["type": "text", "text": reponse.withLock { $0 }]], "stop_reason": "end_turn",
             "usage": ["input_tokens": 3_500, "output_tokens": 900],
         ]
         let http = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [:])!

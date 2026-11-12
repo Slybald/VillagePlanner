@@ -15,7 +15,7 @@ struct CarteConsigne: View {
                 .font(Theme.Police.consigne)
                 .fixedSize(horizontal: false, vertical: true)
             if reformulee {
-                Text("Reformulée par le conseiller, chiffres contrôlés par l'app")
+                Text("Reformulée par le conseiller, chiffres calculés par l'app")
                     .font(Theme.Police.detail)
                     .foregroundStyle(Theme.Couleur.texteDoux)
                     .fixedSize(horizontal: false, vertical: true)

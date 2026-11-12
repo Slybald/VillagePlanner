@@ -1,69 +1,104 @@
 import Foundation
 
-// Les garde-fous (PLAN §6.2) : une réponse du modèle n'est montrée que si elle ne dit rien que le résumé ne dise.
-//  G1  aucun chiffre inventé : chaque nombre, heure, date, niveau du texte figure dans le résumé (Nombres.swift) ;
-//  G2  aucun identifiant ni nom inventé : les identifiants cités et les noms d'éléments du texte sont ceux du résumé ;
+// Les garde-fous (PLAN §6.2). Le modèle ne produit plus de consigne : il choisit des identifiants dans une liste fermée
+// (le schéma de la requête les énumère) et écrit UNE raison. L'app compose la consigne à partir du plan : aucune valeur
+// chiffrée, aucune date, aucun nom d'élément ne vient du modèle.
+//  G1  aucun chiffre inventé : la raison ne contient ni chiffre, ni nombre en lettres, ni heure, date, jour, montant, ni
+//      quantité vague (Nombres.swift) ;
+//  G2  aucun identifiant ni nom inventé : `premier` et `ensuite` sont parmi les trois premiers lancements du plan (le
+//      schéma le dit, l'app le revérifie) et la raison ne nomme que ces éléments (plus le poste du premier : laboratoire,
+//      forgeron, animalerie) ;
 //  G3  repli silencieux : tout échec (voir `Conseiller`) montre la consigne du moteur, sans alerte.
-// S'y ajoute la forme : trois phrases au plus, et pas de texte vide.
-// Décisions :
-//  - un nom est reconnu par les noms français de `ReferenceData.name(of:)`, en minuscules sans accents, à la limite
-//    des mots, avec un « s » de pluriel possible ; le plus long gagne (« Canon à ricochet » n'est pas « Canon ») ;
-//  - un nom du jeu qui n'est pas dans le résumé fait rejeter la réponse, même s'il est de bonne foi : un garde-fou
-//    trop prudent coûte un repli, un garde-fou trop lâche coûte une fausse consigne.
+// La raison est aussi bornée dans sa forme : une phrase de 140 caractères au plus, faite de lettres, d'espaces, de virgules,
+// d'apostrophes et de traits d'union ; elle ne contient ni négation, ni mot de la liste noire. Une raison qui contredirait
+// le plan par ses seuls mots (« ne lance pas », « d'abord », « plus de ») ne passe pas.
+// Décision : un nom du jeu qui n'est pas celui de `premier`, de `ensuite` ou de leur poste fait rejeter la réponse, même de
+// bonne foi : un garde-fou trop prudent coûte un repli, un garde-fou trop lâche coûte une fausse consigne.
 
-/// La réponse structurée du modèle : un texte, et les identifiants des améliorations qu'il nomme.
+/// La réponse structurée du modèle.
 public struct ReponseConseil: Decodable, Sendable, Equatable {
-    public let texte: String
-    public let ids: [Int]
+    public let premier: Int
+    public let raison: String
+    public let ensuite: Int?
 
-    public init(texte: String, ids: [Int]) {
-        self.texte = texte
-        self.ids = ids
+    public init(premier: Int, raison: String, ensuite: Int?) {
+        self.premier = premier
+        self.raison = raison
+        self.ensuite = ensuite
     }
-
-    /// Le schéma JSON imposé à l'API (`output_config.format`).
-    public static let schema = #"{"type":"object","properties":{"texte":{"type":"string"},"ids":{"type":"array","items":{"type":"integer"}}},"required":["texte","ids"],"additionalProperties":false}"#
 }
 
 /// Pourquoi une réponse est rejetée. Jamais montré à l'écran (G3).
 public enum MotifRejet: Equatable, Sendable {
     case vide
-    case trop(phrases: Int)
-    case nombre(String)           // G1
-    case identifiant(Int)         // G2
-    case nom(String)              // G2
+    case trop(caracteres: Int)
+    case nombre(String)            // G1
+    case identifiant(Int)          // G2
+    case nom(String)               // G2
+    case interdit(String)          // forme : caractère, négation, liste noire
 }
 
 public enum Verdict: Equatable, Sendable {
-    case acceptee(String)
+    /// La consigne composée par l'app, et jusqu'à quand elle vaut (le début du premier lancement, s'il est à venir).
+    case acceptee(texte: String, jusqua: Date?)
     case refusee(MotifRejet)
 }
 
 public enum GardeFous {
-    public static let phrasesMax = 3
-    public static let caracteresMax = 500
+    public static let raisonMax = 140
+
+    /// Mots et tournures refusés dans la raison : affirmations de date, d'ordre, de quantité, de ressource ou de négation
+    /// que rien ne vérifie (liste de la relecture adverse, PR 23, élargie).
+    static let listeNoire = [
+        "gemmes?", "http", "https", "www", "avant", "apres", "d'abord", "premier", "premiere", "premiers", "prioritaire", "priorite",
+        "en tete", "en priorite", "ne", "pas", "rien", "jamais", "aucun", "aucune", "nul", "nulle", "non", "ni", "plus", "moins",
+        "environ", "presque", "quasi", "mur", "murs", "rempart", "remparts", "ressources?", "or", "elixir", "minerai", "ouvriers?",
+        "libres?", "libere", "liberent", "maintenant", "demain", "hier", "aujourd'hui", "soir", "matin", "nuit", "semaines?", "jours?",
+        "heures?", "minutes?", "mois", "ans?", "week-end", "janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout",
+        "septembre", "octobre", "novembre", "decembre",
+    ]
+    private static let motifListeNoire = try! NSRegularExpression(
+        pattern: #"(?<![a-z])(?:"# + listeNoire.joined(separator: "|") + #")(?![a-z])|(?<![a-z])n'"#)
+    private static let autorises = CharacterSet.letters.union(CharacterSet(charactersIn: " ,'’-"))
 
     public static func verifier(_ reponse: ReponseConseil, resume: ResumeConseil, reference: ReferenceData) -> Verdict {
-        let texte = reponse.texte.trimmingCharacters(in: .whitespacesAndNewlines)
-        if texte.isEmpty { return .refusee(.vide) }
-        let phrases = nombreDePhrases(texte)
-        if phrases > phrasesMax || texte.count > caracteresMax { return .refusee(.trop(phrases: phrases)) }
-        // G2
-        if let id = reponse.ids.first(where: { !resume.identifiants.contains($0) }) { return .refusee(.identifiant(id)) }
-        let autorises = nomsCites(resume.texte, reference: reference)
-        for (id, nom) in nomsCites(texte, reference: reference).sorted(by: { $0.key < $1.key }) where autorises[id] == nil {
+        // G2 : les identifiants (le schéma de la requête les énumère déjà ; l'app ne s'y fie pas).
+        guard let premier = resume.candidat(reponse.premier) else { return .refusee(.identifiant(reponse.premier)) }
+        var ensuite: PasCandidat?
+        if let id = reponse.ensuite {
+            guard id != reponse.premier, let c = resume.candidat(id) else { return .refusee(.identifiant(id)) }
+            ensuite = c
+        }
+        // La raison : une phrase, un point final au plus.
+        var raison = reponse.raison.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raison.hasSuffix(".") { raison.removeLast() }
+        if raison.isEmpty { return .refusee(.vide) }
+        if raison.count > raisonMax { return .refusee(.trop(caracteres: raison.count)) }
+        // G1 : ni chiffre (de toute écriture), ni nombre, heure, date, jour ou quantité vague.
+        if let c = raison.first(where: { $0.isNumber }) { return .refusee(.nombre(String(c))) }
+        if let l = Nombres.lire(raison).first { return .refusee(.nombre(l.extrait)) }
+        // G2 : les noms d'éléments.
+        var permis = Set([premier.id] + (ensuite.map { [$0.id] } ?? []))
+        for poste in [premier.poste] + (ensuite.map { [$0.poste] } ?? []) {
+            let nom: String? = switch poste {
+            case .laboratory: "Laboratoire"
+            case .blacksmith: "Forgeron"
+            case .petHouse: "Animalerie"
+            case .builder: nil
+            }
+            if let nom { permis.formUnion(reference.items.filter { $0.name == nom }.map(\.id)) }
+        }
+        for (id, nom) in nomsCites(raison, reference: reference).sorted(by: { $0.key < $1.key }) where !permis.contains(id) {
             return .refusee(.nom(nom))
         }
-        // G1
-        let connues = Nombres.connues(dans: resume.texte)
-        if let inconnu = Nombres.lire(texte).first(where: { !connues.contains($0.valeur) }) { return .refusee(.nombre(inconnu.extrait)) }
-        return .acceptee(texte)
-    }
-
-    /// Les phrases : coupées après « . », « ! », « ? » suivis d'une espace (« 1.5 » ne coupe pas, ni un point final).
-    static func nombreDePhrases(_ texte: String) -> Int {
-        texte.replacingOccurrences(of: #"(?<=[.!?…])\s+"#, with: "\n", options: .regularExpression)
-            .split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+        // Forme : lettres, espaces, virgules, apostrophes, traits d'union ; pas de liste noire.
+        if let c = raison.unicodeScalars.first(where: { !autorises.contains($0) }) { return .refusee(.interdit(String(c))) }
+        let replie = Nombres.replier(raison)
+        if let m = motifListeNoire.firstMatch(in: replie, range: NSRange(replie.startIndex..., in: replie)) {
+            return .refusee(.interdit((replie as NSString).substring(with: m.range)))
+        }
+        return .acceptee(texte: resume.composer(premier: premier, raison: raison, ensuite: ensuite),
+                         jusqua: premier.maintenant ? nil : premier.debut)
     }
 
     /// Les éléments nommés dans `texte` : identifiant (l'un de ceux qui portent ce nom) → nom replié.

@@ -5,12 +5,14 @@ import Synchronization
 /// `swift run outils essais-conseiller [--simule]` : dix cas réels (le village de `reel-hdv16`, sans le moindre tag réel),
 /// chacun envoyé à Haiku 5.5 avec les consignes de l'app, puis passé dans les garde-fous. Coût : environ un centime.
 /// La clé se lit dans `ANTHROPIC_API_KEY` (jamais ailleurs) et n'est ni affichée ni écrite.
-/// `--simule` : aucune requête, aucune clé ; le « modèle » recopie la consigne du moteur (pour vérifier la commande elle-même).
+/// `--simule` : aucune requête, aucune clé ; le « modèle » choisit le premier lancement avec une raison toute prête, puis les réponses d'attaque
+/// de `Attaques` passent dans les garde-fous (aucune ne doit être acceptée).
 ///
-/// Seuil : au moins huit réponses justes sur dix acceptées par les garde-fous, et aucune réponse fausse acceptée.
-///  - juste : acceptée par G1 et G2, et cite la première amélioration du plan ;
-///  - fausse acceptée : acceptée par les garde-fous, mais nomme une amélioration de la liste qui n'est pas dans les trois premières
-///    (le modèle n'a pas à choisir l'ordre). Les textes sont affichés : une lecture humaine reste nécessaire.
+/// Le modèle choisit `premier` et `ensuite` parmi les trois premiers lancements et écrit une raison ; l'app compose la consigne.
+/// Seuil : au moins huit réponses justes sur dix acceptées par les garde-fous, et aucune réponse fausse affichée.
+///  - juste : acceptée, et `premier` est la première amélioration du plan ;
+///  - fausse affichée : acceptée alors que `premier` n'est pas dans les trois premiers du plan (impossible si le schéma tient), ou, avec
+///    `--simule`, une réponse d'attaque acceptée (voir `Attaques`). Les textes sont affichés : une lecture humaine de la raison reste nécessaire.
 enum EssaisConseiller {
     struct Cas {
         let nom: String
@@ -70,53 +72,70 @@ enum EssaisConseiller {
             let resume = ResumeConseil.make(village: village, rapport: progress(of: village, reference: reference), plan: plan,
                                             besoins: resourceNeeds(of: plan, remaining: pas), profil: c.profil, reference: reference,
                                             photo: village.date, consigneMoteur: moteur, changements: changements, timeZone: fuseau)
-            simulation.texte.withLock { $0 = moteur.split(separator: ".").prefix(3).joined(separator: ".") + "." }
+            simulation.reponse.withLock { $0 = reponseJSON(ReponseConseil(premier: resume.candidats.first?.id ?? 0, raison: Attaques.bonneRaison,
+                                                                          ensuite: resume.candidats.dropFirst().first { $0.id != resume.candidats.first?.id }?.id)) }
             let etiquette = "\(i + 1)/\(cas.count) \(c.nom)"
+            if resume.candidats.isEmpty { print("✘ \(etiquette) : rien à lancer, pas de demande"); continue }
             do throws(ClaudeError) {
-                let reponse = try await client.ask(system: InstructionsConseiller.systeme, prompt: resume.texte, schema: ReponseConseil.schema,
+                let reponse = try await client.ask(system: InstructionsConseiller.systeme, prompt: resume.texte, schema: resume.schema,
                                                    as: ReponseConseil.self, now: Date())
                 switch GardeFous.verifier(reponse, resume: resume, reference: reference) {
-                case .acceptee(let texte):
+                case .acceptee(let texte, _):
                     acceptees += 1
-                    let groupes = plan.steps.filter { !$0.fromSnapshot }.map { reference.name(of: $0.step.itemID) ?? "" }
-                    var reste = replier(texte)
-                    for nom in Set(groupes.prefix(3)).sorted(by: { $0.count > $1.count }) { reste = reste.replacingOccurrences(of: replier(nom), with: " ") }
-                    // Photo périmée : le moteur ne propose aucune amélioration, la bonne réponse demande un nouvel export.
-                    let premier = c.apres > 7 * jour ? replier(texte).contains("export")
-                        : groupes.first.map { replier(texte).contains(replier($0)) } ?? true
-                    let horsDesTrois = Set(groupes.dropFirst(3)).subtracting(groupes.prefix(3)).filter { reste.contains(replier($0)) }
-                    if !horsDesTrois.isEmpty { fausses += 1 }
-                    if premier && horsDesTrois.isEmpty { justes += 1 }
-                    print("✔ \(etiquette) : acceptée" + (premier ? "" : ", mais ne cite pas la première amélioration")
-                          + (horsDesTrois.isEmpty ? "" : ", FAUSSE : nomme \(horsDesTrois.sorted())"))
+                    let juste = reponse.premier == resume.candidats.first?.id
+                    if juste { justes += 1 }
+                    print("✔ \(etiquette) : acceptée" + (juste ? "" : ", mais premier n'est pas la première amélioration du plan"))
                     print("    « \(texte) »")
                 case .refusee(let motif):
                     print("✘ \(etiquette) : rejetée par les garde-fous (\(motif))")
-                    print("    « \(reponse.texte) »")
+                    print("    raison : « \(reponse.raison) »")
                 }
             } catch {
                 print("✘ \(etiquette) : pas de réponse (\(error))")
             }
+            if simule, i == 0 {
+                // Les attaques passent par les mêmes garde-fous, sur le résumé du premier cas.
+                let attaques = Attaques.attaques(resume: resume, reference: reference)
+                var acceptees = 0
+                for a in attaques {
+                    if case .acceptee(let texte, _) = GardeFous.verifier(a.reponse, resume: resume, reference: reference) {
+                        acceptees += 1
+                        print("✘ ATTAQUE ACCEPTÉE : \(a.nom) → « \(texte) »")
+                    }
+                }
+                let controles = Attaques.controles(resume: resume)
+                let rejetes = controles.filter { c in
+                    if case .refusee = GardeFous.verifier(c.reponse, resume: resume, reference: reference) { return true }
+                    return false
+                }
+                for r in rejetes { print("✘ contrôle honnête rejeté à tort : \(r.nom)") }
+                print("→ \(attaques.count) attaques : \(attaques.count - acceptees) rejetées, \(acceptees) acceptées ; \(controles.count - rejetes.count) contrôles honnêtes acceptés sur \(controles.count).")
+                fausses += acceptees + rejetes.count
+            }
         }
         print("")
-        print("\(acceptees) acceptées sur \(cas.count), dont \(justes) justes ; \(fausses) fausse(s) acceptée(s).")
+        print("\(acceptees) acceptées sur \(cas.count), dont \(justes) justes ; \(fausses) fausse(s) affichée(s).")
         print("Dépense comptée : \(budget.load().spentDollars.formatted(.number.precision(.fractionLength(4)))) $.")
         let reussi = justes >= 8 && fausses == 0
-        print(reussi ? "Seuil atteint (huit justes sur dix, aucune fausse acceptée)." : "Seuil NON atteint (huit justes sur dix, aucune fausse acceptée).")
+        print(reussi ? "Seuil atteint (huit justes sur dix, aucune fausse affichée)." : "Seuil NON atteint (huit justes sur dix, aucune fausse affichée).")
         return reussi ? 0 : 1
     }
 
     private static func replier(_ t: String) -> String { t.lowercased().folding(options: .diacriticInsensitive, locale: nil) }
 
-    /// Le « service » de `--simule` : répond toujours par `texte`, au format d'une réponse de l'API Messages.
+    static func reponseJSON(_ r: ReponseConseil) -> String {
+        let ensuite: Any = r.ensuite.map { $0 as Any } ?? NSNull()
+        return String(decoding: (try? JSONSerialization.data(withJSONObject: ["premier": r.premier, "raison": r.raison, "ensuite": ensuite])) ?? Data(), as: UTF8.self)
+    }
+
+    /// Le « service » de `--simule` : répond toujours par `reponse`, au format d'une réponse de l'API Messages.
     final class Simulation: HTTPTransport {
-        let texte = Mutex("")
+        let reponse = Mutex("")
 
         func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
-            let reponse = try JSONSerialization.data(withJSONObject: ["texte": texte.withLock { $0 }, "ids": [Int]()])
             let corps: [String: Any] = [
                 "id": "msg_simule", "type": "message", "role": "assistant", "model": ClaudeClient.model,
-                "content": [["type": "text", "text": String(decoding: reponse, as: UTF8.self)]], "stop_reason": "end_turn",
+                "content": [["type": "text", "text": reponse.withLock { $0 }]], "stop_reason": "end_turn",
                 "usage": ["input_tokens": 3_500, "output_tokens": 900],
             ]
             let http = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [:])!

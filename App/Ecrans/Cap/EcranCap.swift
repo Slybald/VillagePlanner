@@ -184,7 +184,8 @@ struct EcranCap: View {
     private func consigne(_ plan: PlanAffiche) -> some View {
         // G3 : le conseil du modèle s'il est accepté et à jour, sinon la consigne du moteur, sans un mot d'erreur.
         let cle = conseil.cle(affiche, reference: reference, conseilsDate: modele.dateConseils)
-        return CarteConsigne(texte: conseil.consigne(moteur: plan.consigne, cle: cle), reformulee: conseil.estConseil(cle: cle)) {
+        return CarteConsigne(texte: conseil.consigne(moteur: plan.consigne, cle: cle, now: plan.maintenant),
+                             reformulee: conseil.estConseil(cle: cle, now: plan.maintenant)) {
             modele.demanderOuvert = true
         }
     }

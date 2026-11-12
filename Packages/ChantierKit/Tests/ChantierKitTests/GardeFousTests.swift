@@ -1,40 +1,33 @@
 import Foundation
 import Testing
 @testable import ChantierKit
+@testable import outils
 
-// Les garde-fous du conseiller (T20, PLAN §6.2) : G1 (aucun chiffre inventé), G2 (aucun identifiant ni nom inventé),
-// G3 (tout échec montre la consigne du moteur). Les résumés de ces tests sont écrits à la main, petits, pour que
-// chaque nombre légitime soit visible ; `ConseillerTests` joue les mêmes garde-fous sur le résumé d'un vrai village.
+// Les garde-fous du conseiller (T20, PLAN §6.2). Le modèle choisit des identifiants dans une liste fermée et écrit une raison ;
+// l'app compose la consigne. G1 : aucun chiffre dans la raison. G2 : identifiants et noms du plan seulement. G3 : tout échec
+// montre la consigne du moteur. Le plan est celui de l'export réel anonymisé `reel-hdv16` (tag factice #2PP).
 
 private let reference = Réel.reference
 private let espaceFine = "\u{202F}", insecable = "\u{00A0}"
 
-/// L'identifiant d'un élément de la référence réelle, par son nom français.
+/// Le plan réel une heure après la photo : Animalerie 9 (demain 7 h), Usine de sorts noirs 8 (même heure), Caserne 18 (demain 8 h 15).
+private let complet = Complet()
+private let resume = complet.resume
+private let premier = resume.candidats[0], second = resume.candidats[1], troisieme = resume.candidats[2]
+
+private func verdict(_ raison: String, premier: Int? = nil, ensuite: Int? = nil, dans resume: ResumeConseil = resume) -> Verdict {
+    GardeFous.verifier(ReponseConseil(premier: premier ?? resume.candidats[0].id, raison: raison, ensuite: ensuite), resume: resume, reference: reference)
+}
+
+private func acceptee(_ raison: String, premier: Int? = nil, ensuite: Int? = nil, dans resume: ResumeConseil = resume) -> Bool {
+    if case .acceptee = verdict(raison, premier: premier, ensuite: ensuite, dans: resume) { true } else { false }
+}
+
 private func id(_ nom: String) -> Int { reference.items.first { $0.name == nom }!.id }
-
-private func resume(_ texte: String, _ ids: [Int] = []) -> ResumeConseil { ResumeConseil(texte: texte, identifiants: Set(ids)) }
-
-private func verdict(_ texte: String, dans resume: ResumeConseil, ids: [Int] = []) -> Verdict {
-    GardeFous.verifier(ReponseConseil(texte: texte, ids: ids), resume: resume, reference: reference)
-}
-
-private func acceptee(_ texte: String, dans resume: ResumeConseil, ids: [Int] = []) -> Bool {
-    if case .acceptee = verdict(texte, dans: resume, ids: ids) { true } else { false }
-}
-
-/// Le résumé de base des tests G1 : un lancement demain 14 h de l'Arc-X 11 pour 18 M d'or, durée 3 j 4 h, un cap le 14 mars.
-private let base = resume("""
-    Hôtel de ville 16. Photo : le 11 novembre à 17 h 28. Maintenant : le 12 novembre à 9 h 30.
-    Cap : hôtel de ville 16 terminé le 14 mars à 9 h, hors murs et équipements.
-    Avancement : total 64 %, Défenses 71 %.
-    Profil : orientation attaque, limite de héros en amélioration : 1, heures sans jeu de 23 h à 7 h, ouvriers : 2.
-    - (id \(id("Arc-X"))) Arc-X 11 (niveau 10 → 11) : lancement demain 14 h, coût 18 M d'or, durée 3 j 4 h, ouvrier. Raison : défense clé.
-    Ressources à réunir : 18 M d'or demain 14 h ; rythme 1,5 M d'or par jour.
-    """, [id("Arc-X")])
-
-// MARK: - G1 : la table des formes reconnues
+private func simple(_ t: String) -> String { t.replacingOccurrences(of: insecable, with: " ") }
 
 @Suite struct GardeFousTests {
+    // MARK: - G1 : la table des formes reconnues (lues dans la raison, où aucune n'est permise)
 
     /// Chaque ligne : une écriture, et ce qu'elle veut dire. C'est la liste des formes reconnues (PLAN §6.2).
     static let formes: [(String, [Valeur])] = [
@@ -106,154 +99,162 @@ private let base = resume("""
 
     // MARK: - G1 : un nombre absent du résumé fait rejeter la réponse
 
-    @Test func G1_nombreAbsentDuResume_faitRejeterLaReponse() {
-        #expect(!acceptee("Demain 14 h, lance Arc-X 11 : prépare 19 M d'or.", dans: base))
-        #expect(verdict("Demain 14 h, lance Arc-X 11 : prépare 19 M d'or.", dans: base) == .refusee(.nombre("19 m")))
-        #expect(acceptee("Demain 14 h, lance Arc-X 11 : prépare 18 M d'or.", dans: base))
-    }
+    // MARK: - G1 : un chiffre, un nombre ou une date dans la raison fait rejeter la réponse
 
-    @Test func G1_chaqueEcritureDUnNombreDuResume_estAcceptee() {
-        for ecriture in ["18 M d'or", "18 000 000 d'or", "18\(espaceFine)000\(espaceFine)000 d'or", "18\(insecable)000\(insecable)000 d'or",
-                         "18 millions d'or", "dix-huit millions d'or", "18M d'or"] {
-            #expect(acceptee("Prépare \(ecriture).", dans: base), "\(ecriture)")
+    @Test func G1_chiffreDansLaRaison_faitRejeterLaReponse() {
+        #expect(acceptee("elle débloque d'autres améliorations"))
+        #expect(verdict("elle coûte 29 M d'or") == .refusee(.nombre("2")))
+        for raison in ["elle coûte 29 M", "prépare 29 M d'élixir", "passe au niveau 10", "c'est le 12e niveau", "à 7 h 30", "le 9 décembre", "29 %",
+                       "deux ouvriers", "vingt-neuf millions", "douze niveaux d'un coup", "jeudi", "18 000 000", "elle compte pour un quart"] {
+            if case .refusee(.nombre) = verdict(raison) {} else { Issue.record("« \(raison) » aurait dû être rejetée par G1 : \(verdict(raison))") }
         }
     }
 
-    @Test func G1_nombreInventeDeguise_estRejete() {
-        // Un nombre calculé, arrondi, converti ou écrit en lettres hors du résumé : chacun est absent.
-        for texte in ["Il reste 76 heures.", "Prépare dix-neuf millions d'or.", "Il faut une dizaine de jours.", "Ça prend le double de temps.",
-                      "Prépare 18,5 M d'or.", "Prépare dix-huit millions et demi d'or.", "Compte quinze jours.", "Prépare 17 999 999 d'or.",
-                      "Il reste cinq jours.", "Lance-le à 14 h 30.", "Termine le 15 mars.", "Compte vingt-cinq pour cent de plus.",
-                      "Arc-X 12 ensuite.", "Il y a quatre ouvriers.", "Dans 2 jours.", "Rythme de 15 M d'or par jour."] {
-            #expect(!acceptee(texte, dans: base), "« \(texte) » aurait dû être rejeté")
+    @Test func G1_chiffreDeguise_estRejete() {
+        // Chiffres pleine chasse, cerclés, arabo-indiens, caché par un espace de largeur nulle : aucun ne passe.
+        for raison in ["elle coûte ２９ M", "niveau ①", "٢٩ millions", "elle coûte 2\u{200B}9 M", "une dizaine de jours", "le double", "la moitié du coût"] {
+            #expect(!acceptee(raison), "« \(raison) »")
         }
     }
 
-    @Test func G1_pasDeFauxPositif_surLesFormesDuResume() {
-        for texte in ["Demain 14 h, lance Arc-X 11.", "Prépare 18 M d'or, durée 3 j 4 h.", "Ton cap est le 14 mars à 9 h.",
-                      "Avancement total à 64 %, défenses à 71 %.", "Tu as deux ouvriers.", "Passe de niveau 10 à niveau 11.",
-                      "Rythme de 1,5 M d'or par jour.", "Rythme de 1 500 000 d'or par jour.", "Une seule limite de héros : 1.",
-                      "Tes heures sans jeu vont de 23 h à 7 h.", "La photo date du 11 novembre à 17 h 28."] {
-            // « un ouvrier » demande « 1 » : le résumé le contient (limite de héros : 1), l'article « une » est ignoré.
-            #expect(acceptee(texte, dans: base), "« \(texte) » aurait dû être accepté : \(verdict(texte, dans: base))")
+    @Test func G1_aucuneValeurChiffreeNeVientDuModele_laConsigneEstComposeeParLApp() {
+        // Quand, noms, niveaux et montants viennent du plan : la raison n'en change aucun.
+        guard case .acceptee(let texte, let jusqua) = verdict("elle débloque d'autres améliorations", ensuite: second.id) else {
+            Issue.record("réponse honnête refusée"); return
         }
+        #expect(simple(texte) == "Demain 7 h, lance Animalerie 9 : elle débloque d'autres améliorations. Puis Usine de sorts noirs 8. Prépare 29 M d'élixir.")
+        #expect(jusqua == premier.debut)
+        guard case .acceptee(let autre, _) = verdict("c'est un héros") else { return }
+        #expect(simple(autre) == "Demain 7 h, lance Animalerie 9 : c'est un héros. Prépare 11 M d'élixir.")
     }
 
-    @Test func G1_leJourDUneDate_n_estPasUnNombreAPart() {
-        // Le résumé connaît le 9 décembre, pas le nombre 9 : « le 9 décembre » passe, « 9 ouvriers » non.
-        let r = resume("Cap : le 9 décembre à 14 h.")
-        #expect(acceptee("Ton cap est le 9 décembre.", dans: r))
-        #expect(acceptee("Ton cap est le 9 décembre à 14 h.", dans: r))
-        #expect(!acceptee("Ton cap est le 19 décembre.", dans: r))
-        #expect(!acceptee("Ton cap est le 9 novembre.", dans: r))
-        #expect(!acceptee("Il te faut 9 ouvriers.", dans: r))
-        #expect(!acceptee("Ton cap est le 9.", dans: r))
+    @Test func G1_lePosteLibre_estAnnonceMaintenant() {
+        let c = Complet(now: Réel.village.date.addingTimeInterval(20 * 3600))
+        guard case .acceptee(let texte, let jusqua) = GardeFous.verifier(ReponseConseil(premier: c.resume.candidats[0].id, raison: "c'est un héros", ensuite: nil),
+                                                                          resume: c.resume, reference: reference) else { Issue.record("refusée"); return }
+        #expect(texte.hasPrefix("Maintenant, lance "))
+        #expect(texte.contains("Il te faut "))
+        #expect(jusqua == nil)
     }
 
-    @Test func G1_unEtUne_sontDesArticlesSaufDevantUneUnite() {
-        let sansUn = resume("Lancement demain 14 h : Arc-X 11, deux ouvriers.")
-        #expect(acceptee("Lance un Arc-X 11 demain 14 h.", dans: sansUn))
-        #expect(!acceptee("Un ouvrier est libre.", dans: sansUn))
-        #expect(!acceptee("Dans un jour.", dans: sansUn))
-        #expect(acceptee("Deux ouvriers se libèrent.", dans: sansUn))
+    // MARK: - G2 : un identifiant ou un nom hors du plan fait rejeter la réponse
+
+    @Test func G2_identifiantHorsDesTroisPremiers_faitRejeterLaReponse() {
+        let hors = reference.items.first { !resume.identifiantsPermis.contains($0.id) && $0.category != nil }!.id
+        #expect(verdict("c'est un héros", premier: hors) == .refusee(.identifiant(hors)))
+        #expect(verdict("c'est un héros", premier: 42) == .refusee(.identifiant(42)))
+        #expect(verdict("c'est un héros", premier: id("Hôtel de ville")) == .refusee(.identifiant(id("Hôtel de ville"))))
+        #expect(verdict("c'est un héros", ensuite: 42) == .refusee(.identifiant(42)))
+        #expect(verdict("c'est un héros", ensuite: hors) == .refusee(.identifiant(hors)))
+        #expect(verdict("c'est un héros", ensuite: premier.id) == .refusee(.identifiant(premier.id)))      // ensuite ≠ premier
+        #expect(acceptee("c'est un héros", premier: second.id, ensuite: premier.id))                        // un autre des trois premiers
+        #expect(acceptee("c'est un héros", premier: troisieme.id))
     }
 
-    @Test func G1_nombresEnLettres_deUnADouze() {
-        let mots = ["un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix", "onze", "douze"]
-        for (i, mot) in mots.enumerated() {
-            let n = i + 1
-            #expect(acceptee("Tu as \(mot) ouvriers.", dans: resume("Ouvriers : \(n) ouvriers.")), "\(mot)")
-            let autre = n == 12 ? 1 : n + 1
-            #expect(!acceptee("Tu as \(mot) ouvriers.", dans: resume("Ouvriers : \(autre) ouvriers.")), "\(mot) contre \(autre)")
+    @Test func G2_nomEtranger_faitRejeterLaReponse() {
+        #expect(verdict("la Reine des archères en profite") == .refusee(.nom("reine des archeres")))
+        #expect(verdict("ton Hôtel de ville en profite") == .refusee(.nom("hotel de ville")))
+        #expect(verdict("la \(troisieme.nom) en profite") == .refusee(.nom(Nombres.replier(troisieme.nom))))       // choix non retenu
+        #expect(acceptee("la \(troisieme.nom) en profite", ensuite: troisieme.id))                                  // retenu : permis
+        #expect(acceptee("l'\(premier.nom) débloque d'autres améliorations"))
+        #expect(acceptee("l'\(premier.nom.lowercased()) compte, comme l'\(second.nom.lowercased())", ensuite: second.id))   // casse libre
+    }
+
+    @Test func G2_leLaboratoireEtLeForgeron_sontPermisSeulementSiCEstLePosteDuPremierPas() {
+        func pas(_ nom: String, _ poste: WorkerKind) -> ResumeConseil {
+            let c = PasCandidat(id: id(nom), nom: nom, niveau: 2, copies: 1, debut: Réel.village.date, maintenant: true, couts: [], poste: poste)
+            return ResumeConseil(texte: "", candidats: [c], maintenant: Réel.village.date, fuseau: TimeZone(identifier: "UTC")!)
         }
+        let labo = pas("Cavalière sylvestre", .laboratory), forge = pas("Tonneau de serpents", .blacksmith)
+        #expect(acceptee("le laboratoire en profite", dans: labo))
+        #expect(acceptee("le forgeron en profite", dans: forge))
+        #expect(!acceptee("le forgeron en profite", dans: labo))                  // rejeté, sans planter
+        #expect(!acceptee("le laboratoire en profite", dans: forge))
+        #expect(!acceptee("le laboratoire en profite"))                           // le premier du plan est un bâtiment d'ouvrier
+        #expect(!acceptee("le forgeron en profite"))
     }
 
-    @Test func G1_lesHeures_sontComparees_avecLeursMinutes() {
-        #expect(acceptee("Lance à 7 h.", dans: resume("Lancement demain 7 h.")))
-        #expect(!acceptee("Lance à 7 h 30.", dans: resume("Lancement demain 7 h.")))
-        #expect(!acceptee("Lance à 7 h.", dans: resume("Lancement demain 7 h 30.")))
-        #expect(acceptee("Lance à 7 h 30.", dans: resume("Lancement demain 7 h 30.")))
-        #expect(acceptee("Lance à 7h30.", dans: resume("Lancement demain 7 h 30.")))
-        #expect(acceptee("Lance à 7:30.", dans: resume("Lancement demain 7 h 30.")))
-        #expect(acceptee("Compte 20 minutes.", dans: resume("Durée 5 h 20 min.")))
-    }
-
-    @Test func G1_lesJoursDeLaSemaine_sontVerifies() {
-        #expect(acceptee("Lance jeudi 9 h.", dans: resume("Lancement jeudi 9 h.")))
-        #expect(!acceptee("Lance vendredi 9 h.", dans: resume("Lancement jeudi 9 h.")))
-    }
-
-    @Test func G1_niveaux() {
-        let r = resume("Arc-X 11 (niveau 10 → 11).")
-        #expect(acceptee("Passe l'Arc-X du niveau 10 au niveau 11.", dans: r))
-        #expect(acceptee("Arc-X 10 → 11.", dans: r))
-        #expect(!acceptee("Passe l'Arc-X au niveau 12.", dans: r))
-        #expect(!acceptee("Arc-X 9 → 10.", dans: r))
-    }
-
-    // MARK: - G2 : un identifiant ou un nom absent du résumé fait rejeter la réponse
-
-    @Test func G2_identifiantAbsentDuResume_faitRejeterLaReponse() {
-        let arc = id("Arc-X")
-        #expect(acceptee("Lance Arc-X 11.", dans: base, ids: [arc]))
-        #expect(verdict("Lance Arc-X 11.", dans: base, ids: [arc, id("Canon")]) == .refusee(.identifiant(id("Canon"))))
-        #expect(verdict("Lance Arc-X 11.", dans: base, ids: [42]) == .refusee(.identifiant(42)))
-        // Un identifiant qui existe dans la référence mais pas dans le résumé est rejeté aussi.
-        let canon = id("Canon")
-        #expect(verdict("Lance Arc-X 11.", dans: base, ids: [canon]) == .refusee(.identifiant(canon)))
-        #expect(acceptee("Lance Arc-X 11.", dans: base, ids: []))
-    }
-
-    @Test func G2_nomAbsentDuResume_faitRejeterLaReponse() {
-        #expect(verdict("Lance la Tour à bombes demain 14 h.", dans: base) == .refusee(.nom("tour a bombes")))
-        #expect(verdict("Lance le Canon demain 14 h.", dans: base) == .refusee(.nom("canon")))
-        #expect(verdict("Lance le Roi des barbares demain 14 h.", dans: base) == .refusee(.nom("roi des barbares")))
-        #expect(acceptee("Lance l'Arc-X 11 demain 14 h.", dans: base))
-        #expect(acceptee("Lance l'arc-x 11 demain 14 h.", dans: base))        // casse et accents libres
-    }
-
-    @Test func G2_leNomLePlusLongGagne() {
-        let r = resume("Canon à ricochet 5 : lancement demain 14 h. (id \(id("Canon à ricochet")))", [id("Canon à ricochet")])
-        #expect(acceptee("Lance le Canon à ricochet 5 demain 14 h.", dans: r))
-        #expect(!acceptee("Lance le Canon 5 demain 14 h.", dans: r))             // « Canon » n'est pas « Canon à ricochet »
-        let r2 = resume("Canon 5 : lancement demain 14 h.", [id("Canon")])
-        #expect(!acceptee("Lance le Canon à ricochet 5 demain 14 h.", dans: r2))
-    }
-
-    @Test func G2_lePluriel_etLesMotsDansUnAutreMot() {
-        let r = resume("Canon 5 : lancement demain 14 h.", [id("Canon")])
-        #expect(acceptee("Lance les Canons 5 demain 14 h.", dans: r))
-        #expect(acceptee("Lance le canon 5 demain 14 h, canonnier ou pas.", dans: r))    // « canonnier » n'est pas un nom du jeu
-        #expect(!acceptee("Lance le Dragon 5 demain 14 h.", dans: r))
-    }
-
-    @Test func G2_lesNomsDuResumeSontLesNomsFrancaisDeLaReference() {
-        // `ReferenceData.name(of:)` : le nom que l'écran affiche est celui que le garde-fou reconnaît.
+    @Test func G2_leNomLePlusLongGagne_etLePlurielEstTolere() {
+        #expect(GardeFous.nomsCites("le Canon à ricochet", reference: reference).values.contains("canon a ricochet"))
+        #expect(!GardeFous.nomsCites("le Canon à ricochet", reference: reference).values.contains("canon"))
+        #expect(GardeFous.nomsCites("les Canons", reference: reference).values.contains("canon"))
+        #expect(GardeFous.nomsCites("un canonnier", reference: reference).isEmpty)
         for nom in ["Arc-X", "Roi des barbares", "Tour à bombes", "Hôtel de ville", "Château de clan", "Cabane d'ouvrier"] {
-            let i = id(nom)
-            #expect(reference.name(of: i) == nom)
-            #expect(GardeFous.nomsCites("Lance \(nom) demain.", reference: reference)[i] != nil, "\(nom)")
+            #expect(reference.name(of: id(nom)) == nom)
+            #expect(GardeFous.nomsCites("Lance \(nom) demain.", reference: reference)[id(nom)] != nil, "\(nom)")
         }
     }
 
-    // MARK: - Forme
+    // MARK: - Forme de la raison
 
-    @Test func forme_troisPhrasesAuPlus_etPasDeTexteVide() {
-        #expect(verdict("   ", dans: base) == .refusee(.vide))
-        #expect(acceptee("Lance Arc-X 11. Prépare 18 M d'or. Demain 14 h.", dans: base))
-        #expect(verdict("Lance Arc-X 11. Prépare 18 M d'or. Demain 14 h. Bonne chance !", dans: base) == .refusee(.trop(phrases: 4)))
-        #expect(GardeFous.nombreDePhrases("Rythme de 1.5 M d'or par jour. Fini.") == 2)
-        #expect(verdict(String(repeating: "Lance Arc-X 11 ", count: 40), dans: base) == .refusee(.trop(phrases: 1)))
+    @Test func forme_uneSeulePhrase_de140CaracteresAuPlus_sansListeNoire() {
+        #expect(verdict("") == .refusee(.vide))
+        #expect(verdict("   ") == .refusee(.vide))
+        #expect(acceptee("elle débloque d'autres améliorations."))                         // un point final est toléré
+        #expect(!acceptee("elle débloque tout. lance-la"))
+        #expect(!acceptee("elle débloque tout; lance aussi"))
+        #expect(!acceptee("elle débloque\ntout"))
+        #expect(verdict(String(repeating: "elle débloque ", count: 12)) == .refusee(.trop(caracteres: 167)))
+        for mot in ["utilise tes gemmes", "voir http", "ne lance pas ça", "n'attends rien", "jamais en retard", "d'abord celle-ci", "à faire avant", "plus de temps",
+                    "moins de temps", "environ ça", "améliore tes murs", "libère un ouvrier", "avec de l'or"] {
+            if case .refusee = verdict(mot) {} else { Issue.record("« \(mot) » aurait dû être refusée : \(verdict(mot))") }
+        }
+        #expect(acceptee("c'est un héros, il compte beaucoup pour ton profil"))
+    }
+
+    @Test func attaques_aucuneReponseFausseAcceptee_etLesContrôlesHonnetesPassent() {
+        let attaques = Attaques.attaques(resume: resume, reference: reference)
+        #expect(attaques.count >= 57, "\(attaques.count) attaques")
+        for a in attaques {
+            if case .acceptee(let texte, _) = GardeFous.verifier(a.reponse, resume: resume, reference: reference) {
+                Issue.record("attaque acceptée : \(a.nom) → \(texte)")
+            }
+        }
+        let controles = Attaques.controles(resume: resume)
+        #expect(controles.count >= 6)
+        for c in controles {
+            if case .refusee(let m) = GardeFous.verifier(c.reponse, resume: resume, reference: reference) { Issue.record("\(c.nom) refusé : \(m)") }
+        }
+    }
+
+    // MARK: - Le schéma impose la liste fermée
+
+    @Test func schema_premierEtEnsuite_sontDesEnumerationsDesTroisPremiersIdentifiants() throws {
+        let attendu = resume.identifiantsPermis
+        #expect(attendu.count >= 2 && attendu.count <= ResumeConseil.choixMax)
+        let json = try #require(JSONSerialization.jsonObject(with: Data(resume.schema.utf8)) as? [String: Any])
+        let props = try #require(json["properties"] as? [String: Any])
+        #expect((props["premier"] as? [String: Any])?["enum"] as? [Int] == attendu)
+        let anyOf = try #require((props["ensuite"] as? [String: Any])?["anyOf"] as? [[String: Any]])
+        #expect(anyOf[0]["enum"] as? [Int] == attendu && anyOf[1]["type"] as? String == "null")
+        #expect(json["required"] as? [String] == ["premier", "raison", "ensuite"] && json["additionalProperties"] as? Bool == false)
+    }
+
+    @Test func schema_estCeluiQuiPartAuService() async throws {
+        let banc = BancConseiller(reponses: [Self.ok(premier.id, "c'est un héros", nil)])
+        _ = await banc.conseiller.obtenir(resume: resume, cle: "k", reference: reference, now: BancConseiller.maintenant)
+        let corps = try #require(await banc.transport.requetes.first?.httpBody)
+        let json = try #require(JSONSerialization.jsonObject(with: corps) as? [String: Any])
+        let format = try #require(((json["output_config"] as? [String: Any])?["format"]) as? [String: Any])
+        let schema = try #require(format["schema"] as? [String: Any])
+        let premierEnum = ((schema["properties"] as? [String: Any])?["premier"] as? [String: Any])?["enum"] as? [Int]
+        #expect(premierEnum == resume.identifiantsPermis)
     }
 
     // MARK: - G3 : tout échec montre la consigne du moteur, sans alerte
 
+    static func json(_ premier: Int, _ raison: String, _ ensuite: Int?) -> String {
+        let e: Any = ensuite.map { $0 as Any } ?? NSNull()
+        return String(decoding: try! JSONSerialization.data(withJSONObject: ["premier": premier, "raison": raison, "ensuite": e]), as: UTF8.self)
+    }
+    static func ok(_ premier: Int, _ raison: String, _ ensuite: Int?) -> Reponse { .ok(json(premier, raison, ensuite)) }
+
     @Test func G3_toutEchec_montreLaConsigneDuMoteur_sansAlerte() async throws {
-        let moteur = "Demain 14 h, deux ouvriers se libèrent : lance Arc-X 11. Prépare 18 M d'or."
-        let ok = Reponse.ok(Self.json("Demain 14 h, lance Arc-X 11 : prépare 18 M d'or.", [id("Arc-X")]))
+        let moteur = "Demain 7 h, deux ouvriers se libèrent : lance Animalerie 9 et Usine de sorts noirs 8. Prépare 29 M d'élixir."
+        let p = premier.id
         // Chaque ligne : la réponse du service (ou son absence), et pourquoi l'écran montre le moteur.
         let cas: [(String, String?, [Reponse])] = [
-            ("pas de clé", nil, [ok]),
+            ("pas de clé", nil, [Self.ok(p, "c'est un héros", nil)]),
             ("clé refusée (401)", BancConseiller.cle, [.http(401)]),
             ("trop de requêtes (429 deux fois)", BancConseiller.cle, [.http(429, ["retry-after": "1"]), .http(429, ["retry-after": "1"])]),
             ("erreur du service (500)", BancConseiller.cle, [.http(500)]),
@@ -261,32 +262,32 @@ private let base = resume("""
             ("délai dépassé", BancConseiller.cle, [.panne(.timedOut)]),
             ("refus du modèle", BancConseiller.cle, [.ok(nil, stop: "refusal", categorie: "cyber")]),
             ("hors schéma : pas du JSON", BancConseiller.cle, [.ok("pas du json")]),
-            ("hors schéma : un champ manque", BancConseiller.cle, [.ok(#"{"texte":"Lance Arc-X 11."}"#)]),
-            ("tronquée (max_tokens)", BancConseiller.cle, [.ok(Self.json("Lance", []), stop: "max_tokens")]),
-            ("G1 : nombre inventé", BancConseiller.cle, [.ok(Self.json("Demain 14 h, lance Arc-X 11 : prépare 19 M d'or.", [id("Arc-X")]))]),
-            ("G1 : nombre en lettres inventé", BancConseiller.cle, [.ok(Self.json("Prépare dix-neuf millions d'or.", []))]),
-            ("G2 : identifiant inventé", BancConseiller.cle, [.ok(Self.json("Lance Arc-X 11.", [id("Canon")]))]),
-            ("G2 : nom inventé", BancConseiller.cle, [.ok(Self.json("Lance la Tour à bombes demain 14 h.", []))]),
-            ("trop long", BancConseiller.cle, [.ok(Self.json("Lance Arc-X 11. Prépare 18 M d'or. Demain 14 h. Courage.", []))]),
+            ("hors schéma : un champ manque", BancConseiller.cle, [.ok(#"{"premier":1}"#)]),
+            ("tronquée (max_tokens)", BancConseiller.cle, [.ok(Self.json(p, "c'est un héros", nil), stop: "max_tokens")]),
+            ("G1 : chiffre dans la raison", BancConseiller.cle, [Self.ok(p, "elle coûte 19 M d'or", nil)]),
+            ("G1 : nombre en lettres", BancConseiller.cle, [Self.ok(p, "dix-neuf millions", nil)]),
+            ("G2 : identifiant hors des trois premiers", BancConseiller.cle, [Self.ok(id("Canon"), "c'est un héros", nil)]),
+            ("G2 : nom inventé", BancConseiller.cle, [Self.ok(p, "la Tour à bombes en profite", nil)]),
+            ("liste noire", BancConseiller.cle, [Self.ok(p, "ne lance pas ça", nil)]),
+            ("trop long", BancConseiller.cle, [Self.ok(p, String(repeating: "elle compte ", count: 20), nil)]),
         ]
         for (nom, cle, reponses) in cas {
             let banc = BancConseiller(cle: cle, reponses: reponses)
-            let issue = await banc.conseiller.obtenir(resume: base, cle: "k", reference: reference, now: BancConseiller.maintenant)
+            let issue = await banc.conseiller.obtenir(resume: resume, cle: "k", reference: reference, now: BancConseiller.maintenant)
             #expect(!issue.estConseil, "\(nom) : un conseil a été montré")
             #expect(issue.texte(repli: moteur) == moteur, "\(nom) : l'écran ne montre pas la consigne du moteur")
         }
-        // Et le cas de réussite : le conseil remplace le moteur.
-        let banc = BancConseiller(cle: BancConseiller.cle, reponses: [ok])
-        let issue = await banc.conseiller.obtenir(resume: base, cle: "k", reference: reference, now: BancConseiller.maintenant)
-        #expect(issue == .conseil("Demain 14 h, lance Arc-X 11 : prépare 18 M d'or."))
-        #expect(issue.texte(repli: moteur) != moteur)
+        // Et le cas de réussite : la consigne composée remplace le moteur.
+        let banc = BancConseiller(cle: BancConseiller.cle, reponses: [Self.ok(p, "c'est un héros", nil)])
+        let issue = await banc.conseiller.obtenir(resume: resume, cle: "k", reference: reference, now: BancConseiller.maintenant)
+        #expect(issue.estConseil && issue.texte(repli: moteur) != moteur)
     }
 
     @Test func G3_plafondAtteint_aucunAppel_laConsigneDuMoteurResteAffichee() async {
         var b = Budget()
         for _ in 0..<Budget.callsPerDay { b.recordCall(at: BancConseiller.maintenant, calendar: BancConseiller.calendrier) }
-        let banc = BancConseiller(cle: BancConseiller.cle, budget: b, reponses: [.ok(Self.json("Lance Arc-X 11.", []))])
-        let issue = await banc.conseiller.obtenir(resume: base, cle: "k", reference: reference, now: BancConseiller.maintenant)
+        let banc = BancConseiller(cle: BancConseiller.cle, budget: b, reponses: [Self.ok(premier.id, "c'est un héros", nil)])
+        let issue = await banc.conseiller.obtenir(resume: resume, cle: "k", reference: reference, now: BancConseiller.maintenant)
         #expect(issue == .repli(.erreur(.budgetReached(.daily))))
         #expect(issue.texte(repli: "moteur") == "moteur")
         #expect(await banc.transport.requetes.isEmpty)
@@ -294,17 +295,22 @@ private let base = resume("""
 
     @Test func G3_leTrousseauFerme_laConsigneDuMoteurResteAffichee() async {
         let banc = BancConseiller(coffre: CoffreEnPanne(), reponses: [])
-        let issue = await banc.conseiller.obtenir(resume: base, cle: "k", reference: reference, now: BancConseiller.maintenant)
+        let issue = await banc.conseiller.obtenir(resume: resume, cle: "k", reference: reference, now: BancConseiller.maintenant)
         #expect(issue.texte(repli: "moteur") == "moteur")
         #expect(await banc.transport.requetes.isEmpty)
     }
 
-    static func json(_ texte: String, _ ids: [Int]) -> String {
-        String(decoding: try! JSONSerialization.data(withJSONObject: ["texte": texte, "ids": ids]), as: UTF8.self)
+    @Test func G3_photoPerimee_ouRienAChoisir_aucunAppel() async {
+        let vieux = Complet(now: Réel.village.date.addingTimeInterval(9 * 86_400))
+        #expect(vieux.resume.candidats.isEmpty)
+        let banc = BancConseiller(reponses: [Self.ok(premier.id, "c'est un héros", nil)])
+        let issue = await banc.conseiller.obtenir(resume: vieux.resume, cle: "k", reference: reference, now: BancConseiller.maintenant)
+        #expect(issue == .repli(.rienAChoisir))
+        #expect(await banc.transport.requetes.isEmpty)
     }
 }
 
-// MARK: - BancConseiller des tests du conseiller (partagé avec ConseillerTests)
+// MARK: - Banc des tests du conseiller (partagé avec ConseillerTests)
 
 struct BancConseiller {
     static let cle = "cle-factice-TEST-0000-aaaa-bbbb-cccc-9876"

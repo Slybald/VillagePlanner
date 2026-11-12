@@ -17,8 +17,8 @@ struct EcranDemander: View {
                 VStack(alignment: .leading, spacing: Theme.Espace.xl) {
                     if let plan = affiche.plan {
                         let cle = conseil.cle(affiche, reference: reference, conseilsDate: modele.dateConseils)
-                        let reformulee = conseil.estConseil(cle: cle)
-                        CarteConsigne(texte: conseil.consigne(moteur: plan.consigne, cle: cle), reformulee: reformulee)
+                        let reformulee = conseil.estConseil(cle: cle, now: plan.maintenant)
+                        CarteConsigne(texte: conseil.consigne(moteur: plan.consigne, cle: cle, now: plan.maintenant), reformulee: reformulee)
                         if reformulee { moteur(plan) }
                         profil(plan)
                     }
