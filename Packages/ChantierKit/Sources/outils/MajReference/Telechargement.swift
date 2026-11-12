@@ -37,14 +37,20 @@ enum Telechargement {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         p.arguments = ["gh", "api"] + arguments
-        let sortie = Pipe(), erreur = Pipe()
+        // stderr va dans un fichier : lire deux tubes l'un après l'autre peut bloquer si le second se remplit.
+        let journal = FileManager.default.temporaryDirectory.appendingPathComponent("gh-\(UUID().uuidString).err")
+        FileManager.default.createFile(atPath: journal.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: journal) }
+        let sortie = Pipe()
         p.standardOutput = sortie
-        p.standardError = erreur
+        p.standardError = try FileHandle(forWritingTo: journal)
         try p.run()
         let data = sortie.fileHandleForReading.readDataToEndOfFile()
-        let texteErreur = String(decoding: erreur.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         p.waitUntilExit()
-        guard p.terminationStatus == 0 else { throw Erreur.gh(arguments.joined(separator: " "), texteErreur) }
+        guard p.terminationStatus == 0 else {
+            let texte = (try? String(contentsOf: journal, encoding: .utf8)) ?? ""
+            throw Erreur.gh(arguments.joined(separator: " "), texte)
+        }
         return data
     }
 
@@ -67,9 +73,16 @@ enum Telechargement {
     }
 
     /// Télécharge les fichiers dans `dossier` (créé à côté puis renommé : jamais de cache à moitié écrit).
+    /// Un dossier déjà là mais incomplet (fichier manquant ou vide) est retéléchargé.
     static func telecharger(_ s: SourceDistante, commit: String, chemins: [String], vers dossier: URL) throws {
         let fm = FileManager.default
-        if fm.fileExists(atPath: dossier.path) { return }
+        let complet = chemins.allSatisfy { chemin in
+            let f = dossier.appendingPathComponent(String(chemin.dropFirst(s.chemin.count + 1))).path
+            return ((try? fm.attributesOfItem(atPath: f))?[.size] as? Int ?? 0) > 0
+        }
+        if complet { return }
+        print("téléchargement de \(s.depot) @ \(commit.prefix(7)) : \(chemins.count) fichiers")
+        try? fm.removeItem(at: dossier)
         let partiel = dossier.appendingPathExtension("partiel")
         try? fm.removeItem(at: partiel)
         let erreurs = Mutex<[String]>([])

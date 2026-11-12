@@ -41,6 +41,9 @@ import Testing
         #expect(throws: ReferenceError.corrupt) { try ReferenceData.decode(Data()) }
         let futur = #"{"format":99,"maxTownHall":19,"source":{"name":"","license":"","commit":"","date":""},"items":[]}"#
         #expect(throws: ReferenceError.unsupportedFormat(99)) { try ReferenceData.decode(Data(futur.utf8)) }
+        // Un format futur au schéma différent : « format inconnu », pas « corrompu ».
+        let autreSchema = #"{"format":2,"types":{"1000001":{"nom":"Town Hall"}}}"#
+        #expect(throws: ReferenceError.unsupportedFormat(2)) { try ReferenceData.decode(Data(autreSchema.utf8)) }
         let absent = FileManager.default.temporaryDirectory.appendingPathComponent("absent-\(UUID()).json")
         #expect(throws: ReferenceError.missing) { try ReferenceData.load(from: absent) }
     }
@@ -148,5 +151,64 @@ import Testing
         let apprenti = try #require(Self.reference.item(93000000))
         #expect(apprenti.levels.allSatisfy { $0.helperMultiplier != nil && $0.helperSeconds == 3600 })
         #expect(apprenti.levels.map(\.helperMultiplier) == apprenti.levels.map(\.level))
+        let labo = try #require(Self.reference.item(93000001))
+        #expect(labo.levels.map(\.helperMultiplier) == Array(1...12) && labo.levels.allSatisfy { $0.helperSeconds == 3600 })
+        // L'Alchimiste n'agit pas sur le temps : la source donne boost_multiplier 0 et boost_time_seconds 4.
+        let alchimiste = try #require(Self.reference.item(93000002))
+        #expect(alchimiste.levels.count == 7)
+        #expect(alchimiste.levels.allSatisfy { $0.helperMultiplier == 0 && $0.helperSeconds == 4 })
+    }
+
+    /// Maximums figés à l'HDV 16 (recoupés avec chiefpansancolt), chacun avec le maillon de sa chaîne :
+    /// la source met aussi l'HDV sur chaque niveau, donc retirer un maillon ne change pas toujours le
+    /// maximum ; on fige donc aussi le prérequis lui-même (le plan s'en sert pour l'ordre des améliorations).
+    @Test func maximumsFigesAvecLeurChaine() throws {
+        let r = Self.reference
+        let (hall, maison, forgeron, labo) = (1000071, 1000068, 1000070, 1000007)
+        func exige(_ id: Int, niveau: Int, _ batiment: Int, _ niveauBatiment: Int) -> Bool {
+            r.item(id)?.levels.first { $0.level == niveau }?.requires
+                .contains(Requirement(itemID: batiment, level: niveauBatiment)) ?? false
+        }
+        let cas: [(id: Int, max: Int, niveau: Int, batiment: Int, niveauBatiment: Int, quoi: String)] = [
+            (28000000, 95, 96, hall, 11, "Roi barbare : 96 demande le Hall 11, max 10 à l'HDV 16"),
+            (28000001, 95, 95, hall, 10, "Reine des archers : 95 avec le Hall 10"),
+            (28000006, 80, 81, hall, 11, "Prince des sbires : 81 demande le Hall 11"),
+            (28000007, 15, 16, hall, 11, "Duc dragon : 16 demande le Hall 11"),
+            (73000009, 10, 11, maison, 11, "Frosty : 11 demande la Maison 11, max 10 à l'HDV 16"),
+            (73000010, 10, 1, maison, 9, "Spirit Fox : débloqué par la Maison 9 (l'export en a 8)"),
+            (90000056, 18, 1, forgeron, 9, "Stun Blaster : débloqué par le Forgeron 9"),
+            (90000059, 0, 1, forgeron, 10, "Electro Fangs : Forgeron 10, HDV 17"),
+            (90000061, 27, 27, forgeron, 9, "Portal Pendant : 27 avec le Forgeron 9"),
+            (4000095, 4, 5, labo, 16, "Electro Titan : 5 demande le labo 16, max 14 à l'HDV 16"),
+            (4000095, 4, 4, labo, 14, "Electro Titan : 4 avec le labo 14"),
+            (26000120, 2, 3, labo, 15, "Totem Spell : 3 demande le labo 15"),
+            (4000150, 3, 1, 1000026, 12, "Furnace : débloquée par les Casernes noires 12"),
+            (4000135, 3, 1, 1000059, 8, "Troop Launcher : débloqué par l'Atelier 8"),
+        ]
+        for c in cas {
+            #expect(r.item(c.id)?.maxLevel(atTownHall: Self.hdv) == c.max, "\(c.quoi)")
+            #expect(exige(c.id, niveau: c.niveau, c.batiment, c.niveauBatiment), "\(c.quoi)")
+        }
+        #expect(r.item(hall)?.maxLevel(atTownHall: Self.hdv) == 10)
+        #expect(r.item(maison)?.maxLevel(atTownHall: Self.hdv) == 10)
+        #expect(r.item(forgeron)?.maxLevel(atTownHall: Self.hdv) == 9)
+        #expect(r.item(labo)?.maxLevel(atTownHall: Self.hdv) == 14)
+        // Le niveau 1 d'une troupe ne demande que son bâtiment de production : Barbare dès l'HDV 1.
+        #expect(r.item(4000000)?.maxLevel(atTownHall: 1) == 1)
+        #expect(r.item(4000002)?.maxLevel(atTownHall: 2) == 1)
+    }
+
+    /// La source range sur le niveau L le coût du passage à L + 1 pour les unités ; la référence le
+    /// remet sur le niveau qu'il achète (recoupé avec chiefpansancolt).
+    @Test func coutsSurLeNiveauAchete() throws {
+        let titan = try #require(Self.reference.item(4000095))
+        #expect(titan.levels[0].costs.isEmpty)
+        #expect(titan.levels[1].costs == [ResourceAmount(resource: .elixir, amount: 14_000_000)])
+        #expect(titan.levels[1].duration == 691_200)
+        #expect(titan.levels[4].costs == [ResourceAmount(resource: .elixir, amount: 30_000_000)])
+        let reine = try #require(Self.reference.item(28000001))
+        #expect(reine.levels.last?.costs == [ResourceAmount(resource: .darkElixir, amount: 490_000)])
+        // Bâtiments : la source est déjà alignée (Canon 2 = 1 000 or).
+        #expect(Self.reference.item(1000008)?.levels[1].costs == [ResourceAmount(resource: .gold, amount: 1000)])
     }
 }

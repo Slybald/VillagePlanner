@@ -168,12 +168,16 @@ enum ConversionClashKing {
             }
         }
         /// Un type sans niveau dans la source (cabanes, station, Prospecteur) a un seul niveau, sans coût.
-        func niveaux(_ i: CKItem, _ faire: (CKNiveau, Bool) throws -> ReferenceLevel) rethrows -> [ReferenceLevel] {
+        /// `faire` reçoit aussi le niveau précédent : pour les troupes, sorts, héros, familiers, équipements et
+        /// gardiens, la source range sur le niveau L le coût et la durée du passage de L à L + 1 (vérifié contre
+        /// chiefpansancolt), alors que les prérequis du niveau L sont bien sur L. Les bâtiments et pièges, eux,
+        /// portent sur L le coût de L.
+        func niveaux(_ i: CKItem, _ faire: (CKNiveau, CKNiveau?) throws -> ReferenceLevel) rethrows -> [ReferenceLevel] {
             let source = (i.levels ?? []).sorted { $0.level < $1.level }
             if source.isEmpty {
                 return [ReferenceLevel(level: 1, costs: [], duration: 0, requires: exigences([(hdv, i.requiredTownhall)]))]
             }
-            return try source.enumerated().map { try faire($1, $0 == 0) }
+            return try source.enumerated().map { try faire($1, $0 == 0 ? nil : source[$0 - 1]) }
         }
 
         var brouillons: [Brouillon] = []
@@ -204,6 +208,8 @@ enum ConversionClashKing {
                                         poste: .builder, niveaux: lv, place: true,
                                         fusion: b._id == hdv ? [] : fusion))
             // Défenses fabriquées et leurs modules, imbriqués sous la station (hors avancement, V8).
+            // Leurs prérequis et nombres (1 dès l'HDV 1, station à l'HDV 18 alors qu'un export HDV 16 l'a) ne
+            // sont pas fiables : T05 ne doit jamais en tirer un manque ni un élément à construire.
             for d in b.seasonalDefenses ?? [] {
                 brouillons.append(Brouillon(id: d._id, nom: d.name, section: "buildings", categorie: nil,
                                             exclusion: .craftedDefense, poste: .builder,
@@ -238,11 +244,14 @@ enum ConversionClashKing {
                 brouillons.append(Brouillon(
                     id: u._id, nom: u.name, section: u.productionBuilding == "Workshop" ? "siege_machines" : defaut,
                     categorie: exclusion == nil ? .laboratory : nil, exclusion: exclusion, poste: .laboratory,
-                    niveaux: niveaux(u) { n, premier in
-                        ReferenceLevel(level: n.level, costs: couts(n.upgradeCost, u.upgradeResource),
-                                       duration: n.upgradeTime ?? 0,
-                                       requires: exigences([(hdv, n.requiredTownhall), (labo, n.requiredLabLevel)]
-                                                           + (premier ? [prod] : [])))
+                    // Le niveau 1 d'une troupe ou d'un sort normal ne se recherche pas : seul le bâtiment de
+                    // production le débloque (la source y met l'HDV et le labo du niveau 2, faux aux HDV 1-2).
+                    niveaux: niveaux(u) { n, avant in
+                        ReferenceLevel(level: n.level, costs: couts(avant?.upgradeCost, u.upgradeResource),
+                                       duration: avant?.upgradeTime ?? 0,
+                                       requires: avant == nil && exclusion == nil ? exigences([prod])
+                                           : exigences([(hdv, n.requiredTownhall), (labo, n.requiredLabLevel)]
+                                                       + (avant == nil ? [prod] : [])))
                     }, place: false, fusion: []))
             }
         }
@@ -252,11 +261,11 @@ enum ConversionClashKing {
             let prod = try production(h)
             brouillons.append(Brouillon(
                 id: h._id, nom: h.name, section: "heroes", categorie: .heroes, exclusion: nil, poste: .builder,
-                niveaux: niveaux(h) { n, premier in
-                    ReferenceLevel(level: n.level, costs: couts(n.upgradeCost, h.upgradeResource),
-                                   duration: n.upgradeTime ?? 0,
+                niveaux: niveaux(h) { n, avant in
+                    ReferenceLevel(level: n.level, costs: couts(avant?.upgradeCost, h.upgradeResource),
+                                   duration: avant?.upgradeTime ?? 0,
                                    requires: exigences([(hdv, n.requiredTownhall), (hallDesHeros, n.requiredHeroTavernLevel)]
-                                                       + (premier ? [prod] : [])))
+                                                       + (avant == nil ? [prod] : [])))
                 }, place: false, fusion: []))
         }
 
@@ -265,11 +274,11 @@ enum ConversionClashKing {
             let prod = try production(p)
             brouillons.append(Brouillon(
                 id: p._id, nom: p.name, section: "pets", categorie: .pets, exclusion: nil, poste: .petHouse,
-                niveaux: niveaux(p) { n, premier in
-                    ReferenceLevel(level: n.level, costs: couts(n.upgradeCost, p.upgradeResource),
-                                   duration: n.upgradeTime ?? 0,
+                niveaux: niveaux(p) { n, avant in
+                    ReferenceLevel(level: n.level, costs: couts(avant?.upgradeCost, p.upgradeResource),
+                                   duration: avant?.upgradeTime ?? 0,
                                    requires: exigences([(hdv, n.requiredTownhall), (maisonDesFamiliers, n.requiredPetHouseLevel)]
-                                                       + (premier ? [prod] : [])))
+                                                       + (avant == nil ? [prod] : [])))
                 }, place: false, fusion: []))
         }
 
@@ -279,10 +288,10 @@ enum ConversionClashKing {
             let heros = e.hero.flatMap { herosParNom[$0] }
             brouillons.append(Brouillon(
                 id: e._id, nom: e.name, section: "equipment", categorie: .equipment, exclusion: nil, poste: .blacksmith,
-                niveaux: niveaux(e) { n, premier in
-                    ReferenceLevel(level: n.level, costs: couts(n.upgradeCost, nil), duration: 0,
+                niveaux: niveaux(e) { n, avant in
+                    ReferenceLevel(level: n.level, costs: couts(avant?.upgradeCost, nil), duration: 0,
                                    requires: exigences([(hdv, n.requiredTownhall), (forgeron, n.requiredBlacksmithLevel)]
-                                                       + (premier ? [prod] + (heros.map { [($0, 1)] } ?? []) : [])))
+                                                       + (avant == nil ? [prod] + (heros.map { [($0, 1)] } ?? []) : [])))
                 }, place: false, fusion: []))
         }
 
@@ -298,9 +307,9 @@ enum ConversionClashKing {
         for g in f["guardians"] ?? [] {
             brouillons.append(Brouillon(
                 id: g._id, nom: g.name, section: "guardians", categorie: nil, exclusion: .guardian, poste: .builder,
-                niveaux: niveaux(g) { n, _ in
-                    ReferenceLevel(level: n.level, costs: couts(n.upgradeCost, g.upgradeResource),
-                                   duration: n.upgradeTime ?? 0, requires: exigences([(hdv, n.requiredTownhall)]))
+                niveaux: niveaux(g) { n, avant in
+                    ReferenceLevel(level: n.level, costs: couts(avant?.upgradeCost, g.upgradeResource),
+                                   duration: avant?.upgradeTime ?? 0, requires: exigences([(hdv, n.requiredTownhall)]))
                 }, place: false, fusion: []))
         }
 

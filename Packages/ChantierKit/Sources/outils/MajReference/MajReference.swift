@@ -32,14 +32,11 @@ enum MajReference {
             for s in [clashKing, chiefpansancolt] {
                 let i = try Telechargement.dernierCommit(s)
                 let dossier = dossierCache(s, i)
-                if !fm.fileExists(atPath: dossier.path) {
-                    var chemins = try Telechargement.listerJSON(s, commit: i.commit)
-                    if s.depot == clashKing.depot {
-                        chemins = chemins.filter { fichiersClashKing.contains(URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent) }
-                    }
-                    print("téléchargement de \(s.depot) @ \(i.commit.prefix(7)) : \(chemins.count) fichiers")
-                    try Telechargement.telecharger(s, commit: i.commit, chemins: chemins, vers: dossier)
+                var chemins = try Telechargement.listerJSON(s, commit: i.commit)
+                if s.depot == clashKing.depot {
+                    chemins = chemins.filter { fichiersClashKing.contains(URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent) }
                 }
+                try Telechargement.telecharger(s, commit: i.commit, chemins: chemins, vers: dossier)
                 v[s.depot] = i
             }
             let e = JSONEncoder()

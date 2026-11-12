@@ -67,10 +67,11 @@ extension ReferenceData {
     }
 
     public static func decode(_ data: Data) throws(ReferenceError) -> ReferenceData {
-        guard let reference = try? JSONDecoder().decode(ReferenceData.self, from: data) else {
-            throw .corrupt
-        }
-        guard reference.format == currentFormat else { throw .unsupportedFormat(reference.format) }
+        // Le format d'abord : un format futur au schéma différent doit dire « format inconnu », pas « corrompu ».
+        struct Entete: Decodable { let format: Int }
+        guard let entete = try? JSONDecoder().decode(Entete.self, from: data) else { throw .corrupt }
+        guard entete.format == currentFormat else { throw .unsupportedFormat(entete.format) }
+        guard let reference = try? JSONDecoder().decode(ReferenceData.self, from: data) else { throw .corrupt }
         return reference
     }
 }
