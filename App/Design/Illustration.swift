@@ -77,15 +77,16 @@ struct Illustration: View {
             if !reduire {
                 // Éclat d'or à la montée : invisible au repos (t = 1), joué de 0 à 1 à chaque montée.
                 Image(systemName: "sparkles")
-                    .font(.system(size: taille * 0.5, weight: .bold))
+                    .font(.system(size: taille * 0.32, weight: .bold))
                     .foregroundStyle(Theme.Couleur.or)
                     .shadow(color: Theme.Couleur.ombre, radius: 1, y: 1)
                     .keyframeAnimator(initialValue: 1.0, trigger: eclat) { vue, t in
-                        vue.scaleEffect(0.6 + t * 0.9).opacity(t < 1 ? 1 - t * t : 0)
+                        vue.scaleEffect(0.6 + t * 0.8).opacity(t < 1 ? 1 - t * t : 0)
                     } keyframes: { _ in
                         LinearKeyframe(0.0, duration: 0)
-                        LinearKeyframe(1.0, duration: 1.0)
+                        LinearKeyframe(1.0, duration: 0.7)
                     }
+                    .offset(x: taille * 0.25, y: -taille * 0.25)
                     .allowsHitTesting(false)
             }
         }
