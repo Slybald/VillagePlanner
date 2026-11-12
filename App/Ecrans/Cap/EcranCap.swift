@@ -7,6 +7,10 @@ struct EcranCap: View {
     let affiche: VillageAffiche
     let reference: ReferenceData
     @Environment(ModeleApp.self) private var modele
+    @Environment(ModeleConseil.self) private var conseil
+    /// Ouvrir les Réglages une fois l'écran Demander refermé (deux feuilles ne se relayent pas dans le même temps).
+    @State private var reglagesApres = false
+    @State private var defilement = ScrollPosition()
     @Environment(\.dynamicTypeSize) private var tailleTexte
     @Environment(\.accessibilityReduceMotion) private var reduire
 
@@ -39,8 +43,29 @@ struct EcranCap: View {
                     .padding(.vertical, Theme.Espace.l)
                 }
             }
+            .scrollPosition($defilement)
+            #if DEBUG
+            .task {       // captures : `-cap-defile <points>` fait défiler la page jusqu'à la consigne
+                let y = UserDefaults.standard.double(forKey: "cap-defile")
+                guard y > 0 else { return }
+                try? await Task.sleep(for: .milliseconds(800))
+                defilement.scrollTo(y: y)
+            }
+            #endif
             .pageChantier()
             .sheet(isPresented: $modele.reglagesOuverts) { EcranReglages(reference: reference) }
+            // Le conseil est demandé à l'ouverture et quand sa clé change ; pas pendant que les Réglages sont ouverts
+            // (chaque réglage toucher changerait la clé) : à leur fermeture.
+            .task(id: Declencheur(cle: conseil.cle(affiche, reference: reference, conseilsDate: modele.dateConseils),
+                                  reglagesOuverts: modele.reglagesOuverts)) {
+                guard !modele.reglagesOuverts else { return }
+                conseil.rafraichir(affiche, reference: reference, conseilsDate: modele.dateConseils)
+            }
+            .sheet(isPresented: $modele.demanderOuvert, onDismiss: {
+                if reglagesApres { reglagesApres = false; modele.reglagesOuverts = true }
+            }) {
+                EcranDemander(affiche: affiche, reference: reference) { reglagesApres = true; modele.demanderOuvert = false }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { modele.reglagesOuverts = true } label: { Image(systemName: "gearshape") }
@@ -157,7 +182,16 @@ struct EcranCap: View {
     // MARK: Consigne et hypothèses
 
     private func consigne(_ plan: PlanAffiche) -> some View {
-        CarteConsigne(texte: plan.consigne)
+        // G3 : le conseil du modèle s'il est accepté et à jour, sinon la consigne du moteur, sans un mot d'erreur.
+        let cle = conseil.cle(affiche, reference: reference, conseilsDate: modele.dateConseils)
+        return CarteConsigne(texte: conseil.consigne(moteur: plan.consigne, cle: cle), reformulee: conseil.estConseil(cle: cle)) {
+            modele.demanderOuvert = true
+        }
+    }
+
+    private struct Declencheur: Hashable {
+        let cle: String?
+        let reglagesOuverts: Bool
     }
 
     /// Ce que la date suppose, en une ligne ; plus ce que la photo dit des potions et des minuteurs illisibles.

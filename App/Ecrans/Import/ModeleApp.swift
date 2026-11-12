@@ -11,6 +11,8 @@ struct VillageAffiche {
     let photo: Snapshot?
     /// nil quand l'HDV est inconnu (V7) : il n'y a pas de plan.
     var plan: PlanAffiche? = nil
+    /// Les niveaux gagnés depuis la photo précédente (pour le conseiller) ; nil quand il n'y en a pas.
+    var changements: [ChangementPhoto]? = nil
     var estExemple: Bool { photo == nil }
 }
 
@@ -45,6 +47,8 @@ final class ModeleApp {
     @ObservationIgnored private var pret = false
     /// Les Réglages sont ouverts (feuille sur l'écran Cap).
     var reglagesOuverts = false
+    /// L'écran Demander est ouvert (feuille sur l'écran Cap).
+    var demanderOuvert = false
     /// Ce qui a monté de niveau au dernier import (type → nouveau niveau → ancien), pour l'animation.
     private var montees: [Int: [Int: Int]] = [:]
     /// Les montées déjà jouées, une fois par endroit.
@@ -92,6 +96,7 @@ final class ModeleApp {
            let p = try? JSONDecoder().decode(Profile.self, from: data) { profil = p }
         if pourcentage > 0 { profil.builderReduction = Reduction(percent: pourcentage, endsAt: .distantFuture) }
         if arguments.bool(forKey: "reglages") { reglagesOuverts = true }
+        if arguments.bool(forKey: "demander") { demanderOuvert = true }
         #endif
 
         if !fichiersDebug.isEmpty {
@@ -171,8 +176,17 @@ final class ModeleApp {
         guard let reference else { return nil }
         exportCourant = export
         let village = Village(export: export, reference: reference)
+        let changements = photo.flatMap { villagePrecedent(avant: $0, reference: reference) }.map { village.changements(depuis: $0) }
         return VillageAffiche(village: village, rapport: progress(of: village, reference: reference), photo: photo,
-                              plan: plan(village: village, export: export, reference: reference, estExemple: photo == nil))
+                              plan: plan(village: village, export: export, reference: reference, estExemple: photo == nil),
+                              changements: changements)
+    }
+
+    /// La photo juste avant celle-ci, lue dans le dossier des photos ; nil quand il n'y en a pas.
+    private func villagePrecedent(avant photo: Snapshot, reference: ReferenceData) -> Village? {
+        guard let precedente = store.list().last(where: { $0.date < photo.date }), let texte = store.text(of: precedente),
+              let export = try? VillageExport.parse(texte) else { return nil }
+        return Village(export: export, reference: reference)
     }
 
     private func plan(village: Village, export: VillageExport, reference: ReferenceData, estExemple: Bool) -> PlanAffiche? {
@@ -191,7 +205,8 @@ final class ModeleApp {
         guard let affiche, let reference, let exportCourant else { return }
         self.affiche = VillageAffiche(village: affiche.village, rapport: affiche.rapport, photo: affiche.photo,
                                       plan: plan(village: affiche.village, export: exportCourant, reference: reference,
-                                                 estExemple: affiche.estExemple))
+                                                 estExemple: affiche.estExemple),
+                                      changements: affiche.changements)
     }
 
     // MARK: Presse-papiers

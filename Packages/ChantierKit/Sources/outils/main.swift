@@ -9,6 +9,8 @@ let usage = """
       maj-reference [--cache]        télécharge les sources, écrit reference.json et le rapport
                                      (--cache : sans réseau, depuis le dernier téléchargement)
       maj-images                     télécharge les illustrations manquantes dans App/Ressources/Illustrations
+      essais-conseiller [--simule]   dix cas réels envoyés à Haiku 5.5 puis passés dans les garde-fous (clé dans
+                                     ANTHROPIC_API_KEY, environ un centime) ; --simule : sans clé ni réseau
     """
 
 let arguments = CommandLine.arguments.dropFirst()
@@ -35,6 +37,10 @@ case "maj-images":
         FileHandle.standardError.write(Data("\(error)\n".utf8))
         exit(1)
     }
+case "essais-conseiller":
+    let a = Array(arguments.dropFirst())
+    guard a.isEmpty || a == ["--simule"] else { print(usage); exit(64) }
+    exit(await EssaisConseiller.lancer(simule: a == ["--simule"]))
 default:
     FileHandle.standardError.write(Data("commande inconnue : \(arguments.first!)\n\(usage)\n".utf8))
     exit(64)
