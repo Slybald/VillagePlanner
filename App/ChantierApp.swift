@@ -38,8 +38,7 @@ struct RacineView: View {
                                    symbole: "calendar", estExemple: affiche.estExemple)
                 }
                 Tab("Village", systemImage: "house", value: OngletApp.village) {
-                    PageProvisoire(titre: "Le détail arrive", message: "Chaque bâtiment et chaque niveau, au jalon 1.",
-                                   symbole: "list.bullet", estExemple: affiche.estExemple)
+                    EcranVillage(affiche: affiche, reference: reference)
                 }
             }
             .tint(Theme.Couleur.encre)
