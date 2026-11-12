@@ -70,8 +70,11 @@ public struct KeychainStore: SecretStore {
 
     public func save(_ secret: String) throws(KeyStoreError) {
         guard let key = APIKey.normalized(secret) else { throw .invalidKey }
-        try delete()                                       // l'élément est recréé avec ses attributs d'accès
-        let status = SecItemAdd(Self.attributes(for: key) as CFDictionary, nil)
+        // Mise à jour d'abord : si elle échoue, l'ancienne clé reste.
+        let changes: [String: Any] = [kSecValueData as String: Data(key.utf8),
+                                      kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
+        var status = SecItemUpdate(Self.query as CFDictionary, changes as CFDictionary)
+        if status == errSecItemNotFound { status = SecItemAdd(Self.attributes(for: key) as CFDictionary, nil) }
         guard status == errSecSuccess else { throw .keychain(status: status) }
     }
 

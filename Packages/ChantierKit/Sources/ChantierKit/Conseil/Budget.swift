@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 // Le plafond du conseiller (PLAN §6.3) : 30 appels par jour et 1 $ par mois, au calendrier de l'appareil.
 // Les montants sont des entiers en nanodollars (1 $ = 10^9) : l'addition des dépenses reste exacte.
@@ -123,5 +124,27 @@ public struct BudgetStore: @unchecked Sendable {   // UserDefaults est sûr entr
     public func save(_ budget: Budget) {
         guard let data = try? JSONEncoder().encode(budget) else { return }
         defaults.set(data, forKey: key)
+    }
+
+    /// Un verrou pour tout le processus : deux clients (Réglages, conseiller) ne peuvent pas réserver le même dernier appel.
+    private static let verrou = Mutex(())
+
+    /// Réserve un appel : la barrière atteinte, ou nil si l'appel peut partir (il est alors compté).
+    public func reserveCall(at now: Date, calendar: Calendar) -> BudgetLimit? {
+        Self.verrou.withLock { _ in
+            var b = load()
+            if let limit = b.limitReached(at: now, calendar: calendar) { return limit }
+            b.recordCall(at: now, calendar: calendar)
+            save(b)
+            return nil
+        }
+    }
+
+    public func recordCost(_ nanodollars: Int, at now: Date, calendar: Calendar) {
+        Self.verrou.withLock { _ in
+            var b = load()
+            b.recordCost(nanodollars, at: now, calendar: calendar)
+            save(b)
+        }
     }
 }

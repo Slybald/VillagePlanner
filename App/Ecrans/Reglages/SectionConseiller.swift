@@ -133,6 +133,7 @@ struct SectionConseiller: View {
     static func texte(_ erreur: ClaudeError) -> String {
         switch erreur {
         case .noKey: "Aucune clé enregistrée."
+        case .keychainUnavailable: "Le Trousseau ne répond pas. Déverrouille l'iPhone et réessaie."
         case .unauthorized: "Clé refusée par Anthropic. Vérifie-la dans la Console, ou colle une nouvelle clé."
         case .rateLimited: "Trop de requêtes. Réessaie dans une minute."
         case .serviceUnavailable(let statut): "Le service d'Anthropic ne répond pas (erreur \(statut)). Réessaie plus tard."

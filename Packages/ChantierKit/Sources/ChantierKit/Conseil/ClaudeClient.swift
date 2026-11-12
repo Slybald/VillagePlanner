@@ -40,6 +40,8 @@ private final class SansRedirection: NSObject, URLSessionTaskDelegate, Sendable 
 public enum ClaudeError: Error, Equatable, Sendable {
     /// Aucune clé dans le Trousseau.
     case noKey
+    /// Le Trousseau ne répond pas (appareil verrouillé, par exemple) : la clé est peut-être là.
+    case keychainUnavailable
     /// 401 : la clé est refusée.
     case unauthorized
     /// 429, encore après la seule nouvelle tentative (ou un délai demandé trop long).
@@ -76,12 +78,12 @@ public actor ClaudeClient {
     private let timeout: Duration
     private let sleep: @Sendable (Duration) async throws -> Void
 
-    public init(keys: any SecretStore, budget: BudgetStore, transport: any HTTPTransport = URLSessionTransport(),
+    public init(keys: any SecretStore, budget: BudgetStore, transport: (any HTTPTransport)? = nil,
                 calendar: Calendar, timeout: Duration = ClaudeClient.timeout,
                 sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.keys = keys
         self.budgetStore = budget
-        self.transport = transport
+        self.transport = transport ?? URLSessionTransport(timeout: timeout)
         self.calendar = calendar
         self.timeout = timeout
         self.sleep = sleep
@@ -91,7 +93,9 @@ public actor ClaudeClient {
     /// Le plafond est vérifié avant chaque envoi, nouvelle tentative comprise ; chaque envoi compte pour un appel.
     public func ask<Output: Decodable>(system: String, prompt: String, schema: String, as: Output.Type,
                                        maxTokens: Int = 4_096, now: Date) async throws(ClaudeError) -> Output {
-        guard let stored = try? keys.read(), let key = APIKey.normalized(stored) else { throw .noKey }
+        let stored: String?
+        do { stored = try keys.read() } catch { throw .keychainUnavailable }
+        guard let stored, let key = APIKey.normalized(stored) else { throw .noKey }
         let body = try Self.body(system: system, prompt: prompt, schema: schema, maxTokens: maxTokens)
         let request = Self.request(key: key, body: body, timeout: timeout)
 
@@ -102,8 +106,8 @@ public actor ClaudeClient {
             guard let http = response as? HTTPURLResponse else { throw .invalidResponse }
             switch http.statusCode {
             case 200:
-                return try read(data, as: Output.self, worstCase: maxTokens * Pricing.haiku55.output
-                                                                  + body.count * Pricing.haiku55.input, now: now)
+                let pire = body.count > Pricing.longPromptThreshold ? Pricing.haiku55Long : Pricing.haiku55
+                return try read(data, as: Output.self, worstCase: maxTokens * pire.output + body.count * pire.input, now: now)
             case 401: throw .unauthorized
             case 429:
                 guard attempt == 1, let wait = Self.retryDelay(http), wait <= Self.longestRetryWait else { throw .rateLimited }
@@ -126,16 +130,11 @@ public actor ClaudeClient {
     // MARK: Budget
 
     private func reserveCall(now: Date) throws(ClaudeError) {
-        var budget = budgetStore.load()
-        if let limit = budget.limitReached(at: now, calendar: calendar) { throw .budgetReached(limit) }
-        budget.recordCall(at: now, calendar: calendar)
-        budgetStore.save(budget)
+        if let limit = budgetStore.reserveCall(at: now, calendar: calendar) { throw .budgetReached(limit) }
     }
 
     private func recordCost(_ nanodollars: Int, now: Date) {
-        var budget = budgetStore.load()
-        budget.recordCost(nanodollars, at: now, calendar: calendar)
-        budgetStore.save(budget)
+        budgetStore.recordCost(nanodollars, at: now, calendar: calendar)
     }
 
     // MARK: Requête
@@ -172,7 +171,7 @@ public actor ClaudeClient {
     /// `retry-after` en secondes ; absent, une seconde.
     static func retryDelay(_ response: HTTPURLResponse) -> Duration? {
         guard let text = response.value(forHTTPHeaderField: "retry-after") else { return .seconds(1) }
-        guard let s = Double(text.trimmingCharacters(in: .whitespaces)), s.isFinite else { return nil }
+        guard let s = Double(text.trimmingCharacters(in: .whitespaces)), s.isFinite, s <= 3_600 else { return nil }   // borné avant la conversion en entier
         return .milliseconds(Int((max(0, s) * 1000).rounded(.up)))
     }
 

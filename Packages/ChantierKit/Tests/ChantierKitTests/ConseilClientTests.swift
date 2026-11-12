@@ -129,6 +129,8 @@ struct Cas: Sendable, CustomTestStringConvertible {
             attendu: .failure(.rateLimited), envois: 2, attentes: [.seconds(2)]),
         Cas(nom: "429 avec retry-after de 60 s : pas d'attente, refusé",
             reponses: [.http(429, ["retry-after": "60"])], attendu: .failure(.rateLimited), envois: 1),
+        Cas(nom: "429 avec retry-after démesuré (1e300) : pas de plantage, refusé",
+            reponses: [.http(429, ["retry-after": "1e300"])], attendu: .failure(.rateLimited), envois: 1),
         Cas(nom: "500 : erreur du service, pas de nouvelle tentative", reponses: [.http(500)],
             attendu: .failure(.serviceUnavailable(status: 500)), envois: 1),
         Cas(nom: "529 surcharge : erreur du service", reponses: [.http(529)],
@@ -276,6 +278,35 @@ struct Cas: Sendable, CustomTestStringConvertible {
         #expect(await banc.transport.requetes.count == 30)
     }
 
+    @Test func budget_deuxClientsSimultanes_surLeMemeBudget_jamaisPlusDe30() async {
+        let defaults = UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!
+        let transport = FauxTransport()
+        let clients = (0..<2).map { _ in
+            ClaudeClient(keys: MemorySecretStore(cleFactice), budget: BudgetStore(defaults: defaults), transport: transport,
+                         calendar: paris, sleep: { _ in })
+        }
+        await withTaskGroup(of: Void.self) { groupe in
+            for i in 0..<40 {
+                let client = clients[i % 2]
+                groupe.addTask { _ = try? await client.ask(system: "", prompt: "", schema: Banc.schema, as: Banc.Ok.self, now: maintenant) }
+            }
+        }
+        #expect(await transport.requetes.count == 30)
+    }
+
+    @Test func trousseauEnPanne_distinctDePasDeCle_rienNePart() async {
+        struct CoffreEnPanne: SecretStore {
+            func read() throws(KeyStoreError) -> String? { throw .keychain(status: -25308) }   // errSecInteractionNotAllowed
+            func save(_ secret: String) throws(KeyStoreError) {}
+            func delete() throws(KeyStoreError) {}
+        }
+        let transport = FauxTransport()
+        let client = ClaudeClient(keys: CoffreEnPanne(), budget: BudgetStore(defaults: UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!),
+                                  transport: transport, calendar: paris, sleep: { _ in })
+        await #expect(throws: ClaudeError.keychainUnavailable) { try await client.checkKey(now: maintenant) }
+        #expect(await transport.requetes.isEmpty)
+    }
+
     @Test func budget_nouveauMois_remetLaDepenseAZero_nouveauJour_lesAppels() {
         let b = depart(appels: 30, depense: 500_000_000, le: le(31, 10, 23, 0))
         let jourSuivant = b.at(le(1, 11, 9, 0), calendar: paris)
@@ -303,7 +334,7 @@ struct Cas: Sendable, CustomTestStringConvertible {
     }
 
     @Test func cle_absenteDeToutesLesDescriptionsDErreur() async {
-        var erreurs: [ClaudeError] = [.noKey, .rateLimited, .offline, .timeout, .invalidResponse, .refusal(category: nil),
+        var erreurs: [ClaudeError] = [.noKey, .keychainUnavailable, .rateLimited, .offline, .timeout, .invalidResponse, .refusal(category: nil),
                                       .budgetReached(.daily), .budgetReached(.monthly)]
         for cas in Cas.table where cas.cle != nil {
             if case .failure(let e) = await Banc(cle: cas.cle, budget: cas.budget, reponses: cas.reponses).demander(now: cas.now) {
