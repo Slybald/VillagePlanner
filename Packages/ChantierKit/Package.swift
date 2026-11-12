@@ -11,6 +11,10 @@ let package = Package(
     targets: [
         .target(name: "ChantierKit"),
         .executableTarget(name: "outils", dependencies: ["ChantierKit"]),
-        .testTarget(name: "ChantierKitTests", dependencies: ["ChantierKit"]),
+        .testTarget(
+            name: "ChantierKitTests",
+            dependencies: ["ChantierKit"],
+            resources: [.copy("Fixtures")]
+        ),
     ]
 )
