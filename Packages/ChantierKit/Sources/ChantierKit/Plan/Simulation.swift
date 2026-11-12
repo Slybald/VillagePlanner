@@ -12,7 +12,8 @@ import Foundation
 //  S3  un exemplaire, un niveau à la fois ; deux exemplaires du même type peuvent monter en même temps ;
 //  S4  un lancement qui tomberait dans les heures sans jeu attend leur fin ;
 //  S5  les réductions du profil s'appliquent aux pas lancés avant leur date de fin ;
-//  S6  assistants : tâche T15, qui passe par `finish(_:start:seconds:)` ;
+//  S6  assistants (Assistants.swift) : ils raccourcissent des pas déjà lancés, leurs services sont appliqués
+//      aux événements ; `finish(_:start:seconds:)` reste la fin « sans assistant » ;
 //  S7  la simulation s'arrête quand plus rien ne tourne ; ce qui n'a jamais été lancé sort dans `blocked`.
 // Décisions :
 //  - minuteur illisible (fin inconnue) : le poste est tenu occupé jusqu'à `photo + durée complète du niveau`,
@@ -29,7 +30,8 @@ public struct ScheduledStep: Sendable, Equatable {
     public let lane: Int
     /// Lancement ; pour un minuteur de la photo, la date de la photo (le vrai départ n'est pas connu).
     public let start: Date
-    public let end: Date
+    /// Fin ; un assistant (S6) la rapproche après le lancement.
+    public internal(set) var end: Date
     /// Coût d'un exemplaire, réduction de la date de lancement comprise ; vide pour un minuteur de la photo.
     public let costs: [ResourceAmount]
     public let reductionPercent: Int
@@ -79,12 +81,14 @@ public struct Plan: Sendable, Equatable {
     public let activeBoosts: [String]
     /// Minuteurs illisibles de la photo, tenus jusqu'à leur fin la plus tardive possible.
     public let unknownTimers: Int
+    /// Les services des assistants (S6), dans l'ordre du temps.
+    public let helperServices: [HelperService]
 
     public var potionActive: Bool { !activeBoosts.isEmpty }
 
     public init(now: Date, steps: [ScheduledStep] = [], workerEnds: [WorkerKind: Date] = [:], lastWorker: WorkerKind? = nil,
                 cap: Date? = nil, blocked: [BlockedStep] = [], heroLimitApplied: Bool = false,
-                activeBoosts: [String] = [], unknownTimers: Int = 0) {
+                activeBoosts: [String] = [], unknownTimers: Int = 0, helperServices: [HelperService] = []) {
         self.now = now
         self.steps = steps
         self.workerEnds = workerEnds
@@ -94,6 +98,7 @@ public struct Plan: Sendable, Equatable {
         self.heroLimitApplied = heroLimitApplied
         self.activeBoosts = activeBoosts
         self.unknownTimers = unknownTimers
+        self.helperServices = helperServices
     }
 }
 
@@ -107,19 +112,22 @@ let postsWorkWhileUpgrading = true
 /// Postes simulés, dans l'ordre où ils sont examinés à chaque événement.
 private let simulatedWorkers: [WorkerKind] = [.builder, .laboratory, .petHouse]
 
-/// S6 (T15) : la fin d'un pas lancé à `start` pour `seconds` secondes. Les assistants changeront cette date ici
-/// (et, pour un minuteur de la photo, dans `Simulation.start`, où `helper_timer` dira où en est l'assistant).
+/// La fin d'un pas lancé à `start` pour `seconds` secondes, sans assistant. S6 : un assistant n'est affecté qu'à un
+/// pas déjà en cours (le plus long du poste à l'instant où il est libre) ; Assistants.swift rapproche donc la fin
+/// après coup, pas ici.
 func finish(_ step: UpgradeStep, start: Date, seconds: Int) -> Date {
     start.addingTimeInterval(TimeInterval(seconds))
 }
 
 /// `now` est toujours un paramètre : aucun calcul ne lit l'horloge. `boosts` : ceux de l'export, pour dire si une
-/// potion était active dans la photo.
+/// potion était active dans la photo. `assistants` : ceux de l'export (`Assistants(export:reference:)`) ; sans eux,
+/// le plan ne change pas (S6).
 public func makePlan(for village: Village, reference: ReferenceData, advice: AdviceData,
-                     profile: Profile, now: Date, boosts: [String: Int] = [:]) -> Plan {
+                     profile: Profile, now: Date, boosts: [String: Int] = [:],
+                     assistants: Assistants = Assistants()) -> Plan {
     let all = remainingSteps(of: village, reference: reference, profile: profile, now: now)
     let queues = priorities(of: all, in: village, reference: reference, advice: advice, profile: profile)
-    var sim = Simulation(village: village, reference: reference, profile: profile)
+    var sim = Simulation(village: village, reference: reference, profile: profile, assistants: assistants)
     // Les minuteurs dans un ordre qui ne dépend pas de celui de l'export (couloirs reproductibles).
     func key(_ s: UpgradeStep) -> (Double, Int, Int, Int) {
         guard case .inProgress(let ends) = s.status else { return (0, 0, 0, 0) }
@@ -133,12 +141,13 @@ public func makePlan(for village: Village, reference: ReferenceData, advice: Adv
 
 // MARK: - Moteur
 
-private struct Simulation {
+struct Simulation {
     /// Un exemplaire : son groupe (indice dans `groups`) et son rang dans le groupe.
     struct Copy: Hashable { let group: Int; let index: Int }
     /// `copy` : numéro de l'exemplaire dans `done` et `busy` (des tableaux : la boucle les lit à chaque événement).
     struct Job { let step: UpgradeStep; let copy: Int; let index: Int; let reason: PrioritizedStep.Reason? }
-    struct Running { let job: Job; let lane: Int; let end: Date }
+    /// `slot` : sa place dans `scheduled`, pour que S6 y reporte une fin rapprochée.
+    struct Running { let job: Job; let lane: Int; var end: Date; let slot: Int }
 
     let reference: ReferenceData
     let profile: Profile
@@ -156,11 +165,17 @@ private struct Simulation {
     var scheduled: [ScheduledStep] = []
     var heroLimitApplied = false
     var unknownTimers = 0
+    /// S6 : les assistants (un par type, au plus), leurs affectations lues dans la photo, leurs services.
+    var crew: [HelperRuntime] = []
+    var photoAssignments: [Assistants.Assignment] = []
+    var helperServices: [HelperService] = []
 
-    init(village: Village, reference: ReferenceData, profile: Profile) {
+    init(village: Village, reference: ReferenceData, profile: Profile, assistants: Assistants = Assistants()) {
         self.reference = reference
         self.profile = profile
         photo = village.date
+        crew = HelperRuntime.crew(assistants, reference: reference, photo: village.date)
+        photoAssignments = assistants.assignments
         for e in village.elements { levels[e.itemID, default: [:]][e.level, default: 0] += e.count }
     }
 
@@ -200,6 +215,7 @@ private struct Simulation {
                     unknownTimers += 1
                 }
                 launch(job, at: photo, end: end, costs: [], percent: 0)
+                if case .inProgress(let ends) = step.status { assistPhoto(step, ends: ends, running: running.count - 1) }
             }
         }
     }
@@ -248,7 +264,7 @@ private struct Simulation {
         let lane = taken.firstIndex(of: false) ?? { taken.append(false); return taken.count - 1 }()
         taken[lane] = true
         lanes[worker] = taken
-        running.append(Running(job: job, lane: lane, end: end))
+        running.append(Running(job: job, lane: lane, end: end, slot: scheduled.count))
         busy[job.copy] = true
         // Un bâtiment fusionné consomme ses bâtiments d'origine dès son lancement, les plus avancés d'abord
         // (la photo a déjà retiré ceux d'une fusion en cours).
@@ -290,7 +306,8 @@ private struct Simulation {
                 for worker in simulatedWorkers { assign(worker, at: t) }
                 again = running.contains { $0.end <= t }
             }
-            guard let next = running.map(\.end).min() else { break }          // S7
+            bindHelpers(at: t)                                                // S6
+            guard let next = (running.map(\.end) + helperWakes(after: t, release)).min() else { break }   // S7
             t = release(max(next, t))
         }
     }
@@ -339,6 +356,6 @@ private struct Simulation {
         }
         return Plan(now: now, steps: scheduled, workerEnds: ends, lastWorker: last, cap: last.flatMap { ends[$0] },
                     blocked: blocked, heroLimitApplied: heroLimitApplied, activeBoosts: activeBoosts,
-                    unknownTimers: unknownTimers)
+                    unknownTimers: unknownTimers, helperServices: helperServices)
     }
 }
