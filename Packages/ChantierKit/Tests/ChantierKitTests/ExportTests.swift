@@ -241,6 +241,57 @@ struct GénérateurGraine: RandomNumberGenerator {
         #expect(genres.contains(.malformedSection))
     }
 
+    @Test func sectionInconnueSansDataEntierGardéeBruteSansRienÉcarter() throws {
+        let e = try VillageExport.parse(#"""
+        {"timestamp":1,"spells":[],"zz":[{"id":5,"x":1}],"zm":[{"data":1,"lvl":2},{"id":5}],
+         "zo":{"x":1},"zn":[{"data":"1"}],"zi":[1,-2]}
+        """#)
+        #expect(e.extras["zz"] == .array([.object(["id": .number(5), "x": .number(1)])]))
+        #expect(e.extras["zm"] == .array([.object(["data": .number(1), "lvl": .number(2)]), .object(["id": .number(5)])]))
+        #expect(e.extras["zo"] == .object(["x": .number(1)]))
+        #expect(e.extras["zn"] != nil && e.extras["zi"] != nil)
+        for clé in ["zz", "zm", "zo", "zn", "zi"] { #expect(e.sections[clé] == nil && e.idLists[clé] == nil) }
+        #expect(e.warnings.count == 5)
+        #expect(e.warnings.allSatisfy { $0.kind == .unknownSection })
+    }
+
+    @Test func bornesDeCntLvlEtTimerAuxDeuxBords() throws {
+        func lire(_ champs: String) throws -> VillageExport {
+            try VillageExport.parse(#"{"timestamp":1,"buildings":[{"data":7,\#(champs)}]}"#)
+        }
+        let dix_ans = 10 * 365 * 86_400
+        // Bord haut accepté
+        let ok = try #require(try lire(#""lvl":100000,"cnt":100000,"timer":\#(dix_ans)"#).sections["buildings"]?.first)
+        #expect(ok.level == 100_000 && ok.count == 100_000 && ok.timer == dix_ans)
+        #expect(try lire(#""lvl":0"#).sections["buildings"]?.first?.level == 0)
+        // Un cran au-dessus : lvl et cnt écartent l'élément, comme une valeur invalide
+        for (champ, texte) in [("lvl", #""lvl":100001"#), ("cnt", #""lvl":1,"cnt":100001"#)] {
+            let e = try lire(texte)
+            #expect(e.sections["buildings"] == [])
+            #expect(e.warnings.map(\.kind) == [.entryDropped])
+            #expect(e.warnings.first?.id == 7 && e.warnings.first?.field == champ)
+        }
+        // Minuteur hors bornes : élément gardé, valeur brute dans extras (jamais perdue en silence)
+        for brut in [dix_ans + 1, -1] {
+            let e = try lire(#""lvl":3,"timer":\#(brut)"#)
+            let entrée = try #require(e.sections["buildings"]?.first)
+            #expect(entrée.level == 3 && entrée.timer == nil)
+            #expect(entrée.extras["timer"] == .number(Double(brut)))
+            #expect(e.warnings.map(\.kind) == [.fieldIgnored] && e.warnings.first?.field == "timer")
+        }
+        let texte = try lire(#""lvl":3,"timer":"bientôt""#)
+        #expect(texte.sections["buildings"]?.first?.extras["timer"] == .string("bientôt"))
+        // Cohérence avec futur-05 : 999 reste conservé
+        #expect(try Fixtures.lire("futur-05-niveau-999").entrée("units", 4_000_000)?.level == 999)
+    }
+
+    @Test func nombreDémesuré1e999RefuséCommeJSONInvalide() {
+        // Choix accepté : JSONSerialization rejette 1e999, donc tout le texte est notJSON.
+        #expect(throws: ExportError.notJSON) {
+            try VillageExport.parse(#"{"timestamp":1,"buildings":[{"data":1,"lvl":1e999}]}"#)
+        }
+    }
+
     @Test func enfantsTropProfondsConservésSansRécursionInfinie() throws {
         var imbriqué = #"{"data":1,"lvl":1}"#
         for _ in 0..<50 { imbriqué = #"{"data":1,"modules":["# + imbriqué + "]}" }
@@ -322,8 +373,9 @@ struct GénérateurGraine: RandomNumberGenerator {
 
     static func vérifier(_ e: ExportEntry) {
         #expect(e.count >= 1 && e.id >= 0)
-        #expect(e.level.map { $0 >= 0 } ?? true)
-        #expect(e.timer.map { $0 >= 0 } ?? true)
+        #expect(e.count <= 100_000)
+        #expect(e.level.map { (0...100_000).contains($0) } ?? true)
+        #expect(e.timer.map { (0...315_360_000).contains($0) } ?? true)
         e.children.forEach(vérifier)
     }
 

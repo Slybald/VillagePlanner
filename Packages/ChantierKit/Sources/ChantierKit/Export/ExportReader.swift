@@ -41,6 +41,12 @@ extension JSONValue {
         else { return nil }
         return Int(d)
     }
+
+    /// Entier de 0 à `maximum` inclus, sinon nil.
+    fileprivate func entier(max maximum: Int) -> Int? {
+        guard let n = entier, n >= 0, n <= maximum else { return nil }
+        return n
+    }
 }
 
 struct Avertissements {
@@ -60,6 +66,11 @@ struct Avertissements {
 }
 
 private enum ExportReader {
+    // Bornes larges, indépendantes du jeu : elles évitent seulement les débordements des sommes en aval.
+    static let niveauMax = 100_000
+    static let nombreMax = 100_000
+    static let minuteurMax = 10 * 365 * 86_400   // 10 ans en secondes
+
     static let profondeurMax = 4   // types → modules → … ; au-delà, conservé tel quel dans `extras`
 
     static let basesEntrees = ["buildings", "traps", "units", "siege_machines", "spells", "heroes",
@@ -125,14 +136,18 @@ private enum ExportReader {
                              idLists: idLists, boosts: boosts, warnings: w.liste, extras: extras)
     }
 
-    /// Liste d'objets : entrées ; liste d'entiers : identifiants ; le reste : `extras`.
+    /// Liste d'objets tous pourvus d'un `data` entier : entrées ; liste d'entiers positifs : identifiants ;
+    /// tout le reste est gardé brut dans `extras`, sans rien écarter.
     static func rangerInconnue(_ cle: String, _ valeur: JSONValue, _ sections: inout [String: [ExportEntry]],
                                _ idLists: inout [String: [Int]], _ extras: inout [String: JSONValue],
                                _ w: inout Avertissements) {
         guard case .array(let a) = valeur else { extras[cle] = valeur; return }
-        if a.allSatisfy({ if case .object = $0 { true } else { false } }) {
+        let desEntrées = a.allSatisfy { v in
+            if case .object(let o) = v, let id = o["data"]?.entier, id >= 0 { true } else { false }
+        }
+        if desEntrées {
             sections[cle] = a.compactMap { entree($0, section: cle, profondeur: 0, &w) }
-        } else if a.allSatisfy({ $0.entier != nil }) {
+        } else if a.allSatisfy({ ($0.entier ?? -1) >= 0 }) {
             idLists[cle] = identifiants(a, section: cle, &w)
         } else {
             extras[cle] = valeur
@@ -159,24 +174,26 @@ private enum ExportReader {
         }
         var level: Int?
         if let brut = o.removeValue(forKey: "lvl") {
-            guard let n = brut.entier, n >= 0 else {
-                w.ajouter(.entryDropped, section, id: id, field: "lvl", "niveau illisible ou négatif, élément écarté")
+            guard let n = brut.entier(max: niveauMax) else {
+                w.ajouter(.entryDropped, section, id: id, field: "lvl", "niveau illisible, négatif ou hors bornes, élément écarté")
                 return nil
             }
             level = n
         }
         var count = 1
         if let brut = o.removeValue(forKey: "cnt") {
-            guard let n = brut.entier, n >= 1 else {
-                w.ajouter(.entryDropped, section, id: id, field: "cnt", "nombre illisible ou inférieur à 1, élément écarté")
+            guard let n = brut.entier(max: nombreMax), n >= 1 else {
+                w.ajouter(.entryDropped, section, id: id, field: "cnt", "nombre illisible, inférieur à 1 ou hors bornes, élément écarté")
                 return nil
             }
             count = n
         }
         var timer: Int?
         if let brut = o.removeValue(forKey: "timer") {
-            if let n = brut.entier, n >= 0 { timer = n } else {
-                w.ajouter(.fieldIgnored, section, id: id, field: "timer", "minuteur illisible, retiré")
+            if let n = brut.entier(max: minuteurMax) { timer = n } else {
+                // Gardé brut : sans cela, l'élément passerait pour terminé.
+                o["timer"] = brut
+                w.ajouter(.fieldIgnored, section, id: id, field: "timer", "minuteur illisible ou hors bornes, conservé dans extras")
             }
         }
         var enfants: [ExportEntry] = []
