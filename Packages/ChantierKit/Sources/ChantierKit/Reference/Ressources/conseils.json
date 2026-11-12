@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "date": "2026-11-12",
+  "note": "Opinions de guides tiers, pas des faits. Voir docs/conseils.md pour la mise à jour.",
+  "fallback": "Les éléments absents d'une liste passent après elle, du moins cher au plus cher (coût total du prochain niveau), puis par identifiant.",
+  "lists": {
+    "defenses": {
+      "criterion": "Les défenses qui arrêtent les armées entières (zone, tir à longue portée, noyau) avant les tourelles isolées ; Canons, Tours d'archers et Mortiers en dernier.",
+      "sources": [
+        "https://blueprintcoc.com/blogs/town-hall-16/best-th16-upgrade-guide",
+        "https://cocbasedrop.com/blog/coc-upgrade-priority-th16-what-to-upgrade-first-2026",
+        "https://trophycoach.com/clash-of-clans/guides/upgrade-priority-guide"
+      ],
+      "ids": [1000031, 1000077, 1000079, 1000072, 1000027, 1000067, 1000021, 1000011, 1000102]
+    },
+    "laboratory": {
+      "criterion": "D'abord les troupes, sorts et engins propres au HDV 16 et de l'armée moderne (Cavalier des racines, Électro-Titan, Mineur, Surcroissance), puis les engins qui les portent, puis le reste de l'armée de base.",
+      "sources": [
+        "https://cocbasedrop.com/blog/coc-upgrade-priority-th16-what-to-upgrade-first-2026",
+        "https://trophycoach.com/clash-of-clans/guides/upgrade-priority-guide",
+        "https://blueprintcoc.com/blogs/town-hall-16/best-th16-upgrade-guide"
+      ],
+      "ids": [4000110, 4000095, 4000024, 26000070, 4000075, 4000091, 4000053, 4000010, 4000002]
+    },
+    "equipment": {
+      "criterion": "Les équipements obligatoires de la Reine et du Gardien d'abord, puis les pièces phares du Roi et de la Championne, puis les autres pièces d'armée ; concentrer les minerais plutôt que les répartir.",
+      "sources": [
+        "https://coc-base-guide.vercel.app/articles/coc-equipment-upgrade-priority-2026",
+        "https://trophycoach.com/clash-of-clans/guides/hero-equipment-guide",
+        "https://cocbasedrop.com/blog/coc-upgrade-priority-th16-what-to-upgrade-first-2026"
+      ],
+      "ids": [90000003, 90000004, 90000048, 90000010, 90000014, 90000040, 90000009, 90000022, 90000013, 90000015, 90000001, 90000000]
+    },
+    "pets": {
+      "criterion": "Les familiers les mieux classés dans les listes 2026 (Phénix, Licorne, Renard) avant ceux qui ne servent que dans une armée précise ; L.A.S.S.I, Yak, Lézard et Hibou en dernier.",
+      "sources": [
+        "https://www.topuplive.com/news/clash-of-clans-pet-tier-list-2026.html",
+        "https://blueprintcoc.com/blogs/clash-of-clans-guides/best-pet-upgrade-guide",
+        "https://blueprintcoc.com/blogs/town-hall-16/best-th16-upgrade-guide"
+      ],
+      "ids": [73000004, 73000003, 73000010, 73000016, 73000011, 73000009, 73000008]
+    }
+  }
+}
