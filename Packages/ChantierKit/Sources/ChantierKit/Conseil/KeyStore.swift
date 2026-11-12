@@ -35,6 +35,22 @@ public enum APIKey {
     }
 }
 
+/// Ce que les Réglages savent de la clé.
+public enum KeyState: Equatable, Sendable {
+    case absent
+    case present(masked: String)
+    case unavailable
+}
+
+extension APIKey {
+    public static func state(of store: any SecretStore) -> KeyState {
+        do {
+            guard let key = try store.read().flatMap(normalized) else { return .absent }
+            return .present(masked: masked(key))
+        } catch { return .unavailable }
+    }
+}
+
 /// Le Trousseau iOS : un mot de passe générique, accessible quand l'appareil est déverrouillé, jamais synchronisé
 /// avec iCloud ni restauré sur un autre appareil.
 public struct KeychainStore: SecretStore {

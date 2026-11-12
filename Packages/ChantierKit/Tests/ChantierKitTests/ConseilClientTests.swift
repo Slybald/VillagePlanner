@@ -23,6 +23,7 @@ private let maintenant = le(12)
 enum Reponse: Sendable {
     case http(Int, [String: String] = [:], Data = Data())
     case panne(URLError.Code)
+    case trop                                   // corps au-delà de la limite du transport
 
     /// Une réponse 200 de l'API Messages : un bloc `thinking` vide en tête, comme Haiku 5.5 peut en renvoyer.
     static func ok(_ texte: String? = #"{"ok":true}"#, stop: String = "end_turn", categorie: String? = nil,
@@ -52,6 +53,7 @@ actor FauxTransport: HTTPTransport {
         let r = reponses.isEmpty ? Reponse.ok() : reponses.removeFirst()
         switch r {
         case .panne(let code): throw URLError(code)
+        case .trop: throw ResponseTooLarge()
         case .http(let statut, let entetes, let corps):
             return (corps, HTTPURLResponse(url: request.url!, statusCode: statut, httpVersion: "HTTP/1.1", headerFields: entetes)!)
         }
@@ -155,7 +157,13 @@ struct Cas: Sendable, CustomTestStringConvertible {
             budget: depart(appels: 30, le: le(11, 11, 23, 30)), now: le(12, 11, 0, 30), attendu: .success(true), envois: 1),
         Cas(nom: "30 appels à 0 h 10, il est 23 h 50 le même jour : refusé",
             budget: depart(appels: 30, le: le(12, 11, 0, 10)), now: le(12, 11, 23, 50), attendu: .failure(.budgetReached(.daily)), envois: 0),
-        Cas(nom: "0,999999999 $ ce mois : accepté", budget: depart(depense: 999_999_999), attendu: .success(true), envois: 1),
+        Cas(nom: "0,99 $ ce mois : le pire coût d'un appel tient sous 1 $, accepté", budget: depart(depense: 990_000_000), attendu: .success(true), envois: 1),
+        Cas(nom: "0,999 $ ce mois : le pire coût d'un appel dépasserait 1 $, refusé, rien ne part", budget: depart(depense: 999_000_000),
+            attendu: .failure(.budgetReached(.monthly)), envois: 0),
+        Cas(nom: "30 appels le 12, horloge reculée au 11 : refusé, rien ne part", budget: depart(appels: 30), now: le(11),
+            attendu: .failure(.budgetReached(.daily)), envois: 0),
+        Cas(nom: "1 $ en novembre, horloge reculée en octobre : refusé, rien ne part", budget: depart(depense: 1_000_000_000), now: le(20, 10),
+            attendu: .failure(.budgetReached(.monthly)), envois: 0),
         Cas(nom: "1 $ ce mois : refusé, rien ne part", budget: depart(depense: 1_000_000_000),
             attendu: .failure(.budgetReached(.monthly)), envois: 0),
         Cas(nom: "1 $ le mois dernier : nouveau mois, accepté", budget: depart(depense: 1_000_000_000, le: le(31, 10)),
@@ -240,6 +248,66 @@ struct Cas: Sendable, CustomTestStringConvertible {
         #expect(banc.budget.load().spentThisMonth == 2 * (1_000 * 100 + 10 * 500))
     }
 
+    /// Le pire coût d'un appel tel que le client le calcule : toute la sortie permise, un token par octet envoyé.
+    private func pire(_ banc: Banc) async throws -> Int {
+        let envoye = try #require(await banc.transport.requetes.first?.httpBody).count
+        return 4_096 * 500 + envoye * 100
+    }
+
+    @Test(arguments: [Int.max / 50, -1, 10_000_001])
+    func budget_usageHostile_pasDePlantage_compteAuPire(_ valeur: Int) async throws {
+        let banc = Banc(reponses: [.ok(entree: valeur, sortie: 10)])
+        #expect(await banc.demander() == .failure(.invalidResponse))
+        #expect(banc.budget.load().spentThisMonth == (try await pire(banc)))
+    }
+
+    @Test func budget_coutSansDebordement_memeAvecDesChampsDemesures() {
+        #expect(Pricing.haiku55Cost(of: Usage(inputTokens: Int.max / 50, outputTokens: Int.max / 50)) > 0)
+        #expect(Pricing.haiku55Cost(of: Usage(inputTokens: -1_000, outputTokens: -1_000)) == 0)
+    }
+
+    /// Délai dépassé ou connexion perdue : la requête a peut-être été traitée, donc facturée.
+    @Test(arguments: [URLError.Code.timedOut, .networkConnectionLost])
+    func budget_reponsePerdue_compteeAuPire(_ code: URLError.Code) async throws {
+        let banc = Banc(reponses: [.panne(code)])
+        _ = await banc.demander()
+        #expect(banc.budget.load().spentThisMonth == (try await pire(banc)))
+    }
+
+    /// Ce que le service ne facture pas ne coûte rien : la réservation est rendue.
+    @Test(arguments: [Reponse.panne(.notConnectedToInternet), .http(401), .http(429, ["retry-after": "60"]), .http(500), .http(400)])
+    func budget_echecNonFacture_reservationRendue(_ reponse: Reponse) async {
+        let banc = Banc(reponses: [reponse])
+        _ = await banc.demander()
+        #expect(banc.budget.load().spentThisMonth == 0)
+    }
+
+    @Test func budget_appelsSimultanesPresDuPlafond_jamaisAuDessusDe1Dollar() async {
+        let banc = Banc(budget: depart(depense: 990_000_000), reponses: Array(repeating: .ok(entree: 100, sortie: 4_096), count: 30))
+        await withTaskGroup(of: Void.self) { groupe in
+            let client = banc.client
+            for _ in 0..<30 {
+                groupe.addTask { _ = try? await client.ask(system: "", prompt: "", schema: Banc.schema, as: Banc.Ok.self, now: maintenant) }
+            }
+        }
+        #expect(banc.budget.load().spentThisMonth <= Budget.monthlyLimit)
+    }
+
+    @Test func budget_horlogeReculee_laDepenseDeNovembreResteComptee() async {
+        let banc = Banc(budget: depart(depense: 500_000_000))
+        _ = await banc.demander(now: le(20, 10))                       // horloge en octobre
+        #expect(banc.budget.load().at(maintenant, calendar: paris).spentThisMonth >= 500_000_000)
+    }
+
+    @Test func reponseTropGrosse_couperAu_dela_d_un_Mo() async throws {
+        let petit = AsyncStream<UInt8> { c in for _ in 0..<10 { c.yield(1) }; c.finish() }
+        #expect(try await URLSessionTransport.collect(petit, limit: 1_000_000).count == 10)
+        let gros = AsyncStream<UInt8> { c in for _ in 0..<1_000_001 { c.yield(1) }; c.finish() }
+        await #expect(throws: ResponseTooLarge.self) { try await URLSessionTransport.collect(gros, limit: 1_000_000) }
+        let banc = Banc(reponses: [.trop])
+        #expect(await banc.demander() == .failure(.invalidResponse))
+    }
+
     @Test func budget_usageIllisible_compteAuPire() async throws {
         let banc = Banc(reponses: [.http(200, [:], Data("{}".utf8))])
         _ = await banc.demander()
@@ -294,12 +362,13 @@ struct Cas: Sendable, CustomTestStringConvertible {
         #expect(await transport.requetes.count == 30)
     }
 
+    @Test func etatDeLaCle_absente_masquee_ouTrousseauEnPanne() {
+        #expect(APIKey.state(of: MemorySecretStore()) == .absent)
+        #expect(APIKey.state(of: MemorySecretStore(cleFactice)) == .present(masked: "••••••••9876"))
+        #expect(APIKey.state(of: CoffreEnPanne()) == .unavailable)
+    }
+
     @Test func trousseauEnPanne_distinctDePasDeCle_rienNePart() async {
-        struct CoffreEnPanne: SecretStore {
-            func read() throws(KeyStoreError) -> String? { throw .keychain(status: -25308) }   // errSecInteractionNotAllowed
-            func save(_ secret: String) throws(KeyStoreError) {}
-            func delete() throws(KeyStoreError) {}
-        }
         let transport = FauxTransport()
         let client = ClaudeClient(keys: CoffreEnPanne(), budget: BudgetStore(defaults: UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!),
                                   transport: transport, calendar: paris, sleep: { _ in })
@@ -401,4 +470,11 @@ struct Cas: Sendable, CustomTestStringConvertible {
         }
         #expect(lus >= 4)
     }
+}
+
+/// Un Trousseau qui refuse de répondre (appareil verrouillé).
+struct CoffreEnPanne: SecretStore {
+    func read() throws(KeyStoreError) -> String? { throw .keychain(status: -25308) }   // errSecInteractionNotAllowed
+    func save(_ secret: String) throws(KeyStoreError) {}
+    func delete() throws(KeyStoreError) {}
 }

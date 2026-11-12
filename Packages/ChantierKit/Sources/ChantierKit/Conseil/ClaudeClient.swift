@@ -26,8 +26,28 @@ public struct URLSessionTransport: HTTPTransport {
         session = URLSession(configuration: config)
     }
 
+    /// Au-delà, la réponse n'est pas lue (une réponse attendue tient en quelques kilo-octets).
+    public static let responseLimit = 1_000_000
+
     public func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        try await session.data(for: request, delegate: SansRedirection())
+        let (bytes, response) = try await session.bytes(for: request, delegate: SansRedirection())
+        return (try await Self.collect(bytes, limit: Self.responseLimit), response)
+    }
+}
+
+/// Le corps de la réponse dépasse la limite du transport.
+public struct ResponseTooLarge: Error, Equatable {
+    public init() {}
+}
+
+extension URLSessionTransport {
+    static func collect<S: AsyncSequence>(_ bytes: S, limit: Int) async throws -> Data where S.Element == UInt8 {
+        var data = Data()
+        for try await b in bytes {
+            guard data.count < limit else { throw ResponseTooLarge() }
+            data.append(b)
+        }
+        return data
     }
 }
 
@@ -98,16 +118,20 @@ public actor ClaudeClient {
         guard let stored, let key = APIKey.normalized(stored) else { throw .noKey }
         let body = try Self.body(system: system, prompt: prompt, schema: schema, maxTokens: maxTokens)
         let request = Self.request(key: key, body: body, timeout: timeout)
+        let worst = Self.worstCase(maxTokens: maxTokens, bodyBytes: body.count)
 
         for attempt in 1...2 {
-            try reserveCall(now: now)
+            if let limit = budgetStore.reserveCall(at: now, calendar: calendar, worstCase: worst) { throw .budgetReached(limit) }
             let data: Data, response: URLResponse
-            do { (data, response) = try await transport.send(request) } catch { throw Self.transportError(error) }
+            do { (data, response) = try await transport.send(request) } catch {
+                // Délai dépassé, connexion perdue, réponse trop grosse : la requête a peut-être été traitée, le pire reste compté.
+                if !Self.mayHaveBeenBilled(error) { settle(worst, actual: 0, now: now) }
+                throw Self.transportError(error)
+            }
             guard let http = response as? HTTPURLResponse else { throw .invalidResponse }
+            if http.statusCode != 200 { settle(worst, actual: 0, now: now) }    // une erreur HTTP n'est pas facturée
             switch http.statusCode {
-            case 200:
-                let pire = body.count > Pricing.longPromptThreshold ? Pricing.haiku55Long : Pricing.haiku55
-                return try read(data, as: Output.self, worstCase: maxTokens * pire.output + body.count * pire.input, now: now)
+            case 200: return try read(data, as: Output.self, reserved: worst, now: now)
             case 401: throw .unauthorized
             case 429:
                 guard attempt == 1, let wait = Self.retryDelay(http), wait <= Self.longestRetryWait else { throw .rateLimited }
@@ -129,12 +153,14 @@ public actor ClaudeClient {
 
     // MARK: Budget
 
-    private func reserveCall(now: Date) throws(ClaudeError) {
-        if let limit = budgetStore.reserveCall(at: now, calendar: calendar) { throw .budgetReached(limit) }
+    private func settle(_ reserved: Int, actual: Int, now: Date) {
+        budgetStore.settle(reserved: reserved, actual: actual, at: now, calendar: calendar)
     }
 
-    private func recordCost(_ nanodollars: Int, now: Date) {
-        budgetStore.recordCost(nanodollars, at: now, calendar: calendar)
+    /// Le pire coût d'un appel : toute la sortie permise, un token par octet envoyé, au tarif long si la requête l'est.
+    static func worstCase(maxTokens: Int, bodyBytes: Int) -> Int {
+        let p = bodyBytes > Pricing.longPromptThreshold ? Pricing.haiku55Long : Pricing.haiku55
+        return maxTokens * p.output + bodyBytes * p.input
     }
 
     // MARK: Requête
@@ -176,7 +202,12 @@ public actor ClaudeClient {
     }
 
     static func transportError(_ error: any Error) -> ClaudeError {
-        (error as? URLError)?.code == .timedOut ? .timeout : .offline
+        if error is ResponseTooLarge { return .invalidResponse }
+        return (error as? URLError)?.code == .timedOut ? .timeout : .offline
+    }
+
+    static func mayHaveBeenBilled(_ error: any Error) -> Bool {
+        error is ResponseTooLarge || [.timedOut, .networkConnectionLost].contains((error as? URLError)?.code)
     }
 
     // MARK: Réponse
@@ -192,13 +223,10 @@ public actor ClaudeClient {
     }
 
     /// `stop_reason` est lu avant le contenu. La dépense est comptée sur `usage`, même quand la réponse est refusée ;
-    /// sans `usage` lisible, au pire (toute la sortie permise, un token par octet envoyé).
-    private func read<Output: Decodable>(_ data: Data, as: Output.Type, worstCase: Int, now: Date) throws(ClaudeError) -> Output {
-        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else {
-            recordCost(worstCase, now: now)
-            throw .invalidResponse
-        }
-        recordCost(Pricing.haiku55Cost(of: envelope.usage), now: now)
+    /// sans `usage` lisible (ou hors bornes), la réservation au pire reste comptée.
+    private func read<Output: Decodable>(_ data: Data, as: Output.Type, reserved: Int, now: Date) throws(ClaudeError) -> Output {
+        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else { throw .invalidResponse }
+        settle(reserved, actual: Pricing.haiku55Cost(of: envelope.usage), now: now)
         switch envelope.stopReason {
         case "end_turn": break
         case "refusal": throw .refusal(category: envelope.stopDetails?.category)

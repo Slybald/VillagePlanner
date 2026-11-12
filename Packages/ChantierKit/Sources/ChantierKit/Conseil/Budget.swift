@@ -29,10 +29,20 @@ public struct Usage: Sendable, Equatable, Decodable {
         outputTokens = try c.decode(Int.self, forKey: .outputTokens)
         cacheCreationInputTokens = try c.decodeIfPresent(Int.self, forKey: .cacheCreationInputTokens) ?? 0
         cacheReadInputTokens = try c.decodeIfPresent(Int.self, forKey: .cacheReadInputTokens) ?? 0
+        // Une valeur hors bornes rend la réponse illisible : elle est alors comptée au pire.
+        guard [inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens].allSatisfy({ (0...Self.maxTokens).contains($0) }) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: c.codingPath, debugDescription: "usage hors bornes"))
+        }
     }
 
+    /// Bien au-delà de ce qu'une requête peut compter (1 M de contexte, 128 K en sortie).
+    public static let maxTokens = 10_000_000
+
     /// Toute la requête : c'est elle qui choisit le tarif (au-delà de 100 000 tokens, le tarif long).
-    public var promptTokens: Int { inputTokens + cacheCreationInputTokens + cacheReadInputTokens }
+    public var promptTokens: Int { Self.borne(inputTokens) + Self.borne(cacheCreationInputTokens) + Self.borne(cacheReadInputTokens) }
+
+    /// Chaque champ ramené à 0…10 000 000 : le calcul du coût ne déborde jamais.
+    static func borne(_ n: Int) -> Int { min(max(n, 0), maxTokens) }
 }
 
 /// Prix par token, en nanodollars.
@@ -52,8 +62,8 @@ public struct Pricing: Sendable, Equatable {
     /// Le coût d'une réponse de Haiku 5.5, en nanodollars.
     public static func haiku55Cost(of usage: Usage) -> Int {
         let p = usage.promptTokens > longPromptThreshold ? haiku55Long : haiku55
-        return usage.inputTokens * p.input + usage.outputTokens * p.output
-            + usage.cacheReadInputTokens * p.cacheRead + usage.cacheCreationInputTokens * p.cacheWrite
+        return Usage.borne(usage.inputTokens) * p.input + Usage.borne(usage.outputTokens) * p.output
+            + Usage.borne(usage.cacheReadInputTokens) * p.cacheRead + Usage.borne(usage.cacheCreationInputTokens) * p.cacheWrite
     }
 }
 
@@ -68,25 +78,29 @@ public struct Budget: Codable, Sendable, Equatable {
     public private(set) var day = ""                         // « 2026-11-12 », au calendrier de l'appareil
     public private(set) var callsToday = 0
     public private(set) var month = ""                       // « 2026-11 »
-    public private(set) var spentThisMonth = 0               // nanodollars
+    public private(set) var spentThisMonth = 0               // nanodollars, réservations en cours comprises
+    /// La date la plus récente déjà vue : reculer l'horloge de l'appareil ne remet rien à zéro.
+    public private(set) var latest: Date?
 
     public init() {}
 
-    /// Le budget tel qu'il se lit à `now`.
+    /// Le budget tel qu'il se lit à `now`, ou à la date la plus récente déjà vue si l'horloge a reculé.
     public func at(_ now: Date, calendar: Calendar) -> Budget {
-        let c = calendar.dateComponents([.year, .month, .day], from: now)
+        let t = max(now, latest ?? now)
+        let c = calendar.dateComponents([.year, .month, .day], from: t)
         let m = String(format: "%04d-%02d", c.year ?? 0, c.month ?? 0)
         let d = m + String(format: "-%02d", c.day ?? 0)
         var b = self
         if b.month != m { b.month = m; b.spentThisMonth = 0 }
         if b.day != d { b.day = d; b.callsToday = 0 }
+        b.latest = t
         return b
     }
 
-    /// La barrière atteinte à `now`, ou nil si un appel peut partir.
-    public func limitReached(at now: Date, calendar: Calendar) -> BudgetLimit? {
+    /// La barrière atteinte à `now` pour un appel qui peut coûter jusqu'à `cost`, ou nil s'il peut partir.
+    public func limitReached(at now: Date, calendar: Calendar, cost: Int = 0) -> BudgetLimit? {
         let b = at(now, calendar: calendar)
-        if b.spentThisMonth >= Self.monthlyLimit { return .monthly }
+        if b.spentThisMonth >= Self.monthlyLimit || b.spentThisMonth > Self.monthlyLimit - max(0, cost) { return .monthly }
         if b.callsToday >= Self.callsPerDay { return .daily }
         return nil
     }
@@ -98,7 +112,13 @@ public struct Budget: Codable, Sendable, Equatable {
 
     public mutating func recordCost(_ nanodollars: Int, at now: Date, calendar: Calendar) {
         self = at(now, calendar: calendar)
-        spentThisMonth += max(0, nanodollars)
+        adjustSpending(by: max(0, nanodollars))
+    }
+
+    /// Ajoute (ou rend) un montant, sans jamais passer sous zéro ni déborder.
+    mutating func adjustSpending(by delta: Int) {
+        let (somme, deborde) = spentThisMonth.addingReportingOverflow(delta)
+        spentThisMonth = deborde ? (delta > 0 ? Int.max : 0) : max(0, somme)
     }
 
     /// La dépense du mois en dollars, pour l'affichage.
@@ -129,21 +149,25 @@ public struct BudgetStore: @unchecked Sendable {   // UserDefaults est sûr entr
     /// Un verrou pour tout le processus : deux clients (Réglages, conseiller) ne peuvent pas réserver le même dernier appel.
     private static let verrou = Mutex(())
 
-    /// Réserve un appel : la barrière atteinte, ou nil si l'appel peut partir (il est alors compté).
-    public func reserveCall(at now: Date, calendar: Calendar) -> BudgetLimit? {
+    /// Réserve un appel et son pire coût : la barrière atteinte, ou nil si l'appel peut partir (il est alors compté,
+    /// et `worstCase` ajouté à la dépense jusqu'à ce que `settle` le remplace par le coût réel).
+    public func reserveCall(at now: Date, calendar: Calendar, worstCase: Int) -> BudgetLimit? {
         Self.verrou.withLock { _ in
             var b = load()
-            if let limit = b.limitReached(at: now, calendar: calendar) { return limit }
+            if let limit = b.limitReached(at: now, calendar: calendar, cost: worstCase) { return limit }
             b.recordCall(at: now, calendar: calendar)
+            b.recordCost(worstCase, at: now, calendar: calendar)
             save(b)
             return nil
         }
     }
 
-    public func recordCost(_ nanodollars: Int, at now: Date, calendar: Calendar) {
+    /// Remplace la réservation par le coût réel (0 si le service n'a rien facturé).
+    /// shortcut: si l'app s'arrête entre la réservation et ce règlement, le pire coût reste compté (au plus 0,002 $ par appel).
+    public func settle(reserved: Int, actual: Int, at now: Date, calendar: Calendar) {
         Self.verrou.withLock { _ in
-            var b = load()
-            b.recordCost(nanodollars, at: now, calendar: calendar)
+            var b = load().at(now, calendar: calendar)
+            b.adjustSpending(by: max(0, actual) - reserved)
             save(b)
         }
     }

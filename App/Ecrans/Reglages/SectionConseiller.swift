@@ -6,7 +6,7 @@ import SwiftUI
 struct SectionConseiller: View {
     private let cles: any SecretStore
     private let budgetStore: BudgetStore
-    @State private var masque: String?
+    @State private var etatCle = KeyState.absent
     @State private var saisie = ""
     @State private var budget = Budget()
     @State private var message: String?
@@ -36,7 +36,8 @@ struct SectionConseiller: View {
 
     var body: some View {
         Section {
-            if let masque {
+            switch etatCle {
+            case .present(let masque):
                 LabeledContent("Clé d'API") {
                     Text(masque).font(Theme.Police.chiffreDetail).foregroundStyle(Theme.Couleur.texteDoux)
                         .accessibilityLabel("Enregistrée, masquée")
@@ -51,7 +52,11 @@ struct SectionConseiller: View {
                 .disabled(enCours)
                 Button("Effacer la clé", role: .destructive, action: effacer)
                     .foregroundStyle(Theme.Couleur.action)
-            } else {
+            case .unavailable:
+                // Ni champ ni bouton : la clé est peut-être là, et un nouvel enregistrement l'écraserait.
+                Label("Le Trousseau ne répond pas. Déverrouille l'iPhone, puis rouvre les Réglages.", systemImage: "lock.fill")
+                    .font(Theme.Police.detail)
+            case .absent:
                 SecureField("Colle ta clé d'API", text: $saisie)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -92,7 +97,7 @@ struct SectionConseiller: View {
     // MARK: Gestes
 
     private func relire() {
-        masque = (try? cles.read()).flatMap { $0 }.map(APIKey.masked)
+        etatCle = APIKey.state(of: cles)
         budget = budgetStore.load().at(Date(), calendar: .current)
     }
 
