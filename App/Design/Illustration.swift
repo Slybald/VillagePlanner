@@ -77,7 +77,7 @@ struct Illustration: View {
             if !reduire {
                 // Éclat d'or à la montée : invisible au repos (t = 1), joué de 0 à 1 à chaque montée.
                 Image(systemName: "sparkles")
-                    .font(.system(size: taille * 0.32, weight: .bold))
+                    .font(Theme.Police.eclat(taille * 0.32))
                     .foregroundStyle(Theme.Couleur.or)
                     .shadow(color: Theme.Couleur.ombre, radius: 1, y: 1)
                     .keyframeAnimator(initialValue: 1.0, trigger: eclat) { vue, t in
@@ -133,7 +133,7 @@ struct Terrain: View {
 
     var body: some View {
         let h = min(hauteur, 280)
-        Color.clear
+        Rectangle().fill(.clear)
             .frame(height: h)
             .frame(maxWidth: .infinity)
             .background {

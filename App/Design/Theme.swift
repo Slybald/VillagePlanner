@@ -65,6 +65,8 @@ enum Theme {
         static let chiffreGrandSigne = Font.custom(titres, size: 28, relativeTo: .title)
         /// Étiquette de rubrique, en capitales espacées.
         static let etiquette = Font.custom(titres, size: 14, relativeTo: .caption)
+        /// L'éclat (symbole) d'une montée de niveau, à la taille de l'illustration.
+        static func eclat(_ taille: CGFloat) -> Font { .system(size: taille, weight: .bold) }
         /// Le niveau posé sur une illustration.
         static let badge = Font.custom(titres, size: 13, relativeTo: .caption)
 
