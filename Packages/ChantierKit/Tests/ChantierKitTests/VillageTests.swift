@@ -154,6 +154,18 @@ extension Village {
         #expect(progress(of: v, reference: r) == progress(of: Réel.village, reference: r))   // exclu des calculs
     }
 
+    @Test func V5_sectionInconnueAllumeLeBandeau() throws {
+        let v = Village(export: try Fixtures.lire("futur-01-section-inconnue"), reference: Réel.reference)
+        #expect(v.status == .staleReference)
+        #expect(v.unknown.isEmpty)
+        #expect(progress(of: v, reference: Réel.reference) == progress(of: Réel.village, reference: Réel.reference))
+        // Une section inconnue de la base des ouvriers (`*2`) n'allume rien.
+        let avertissement = ExportWarning(kind: .unknownSection, section: "guardians2", message: "")
+        let export = VillageExport(tag: "#2PP", date: Mini.date, sections: ["buildings": Mini.finishedBuildings],
+                                   idLists: [:], boosts: [:], warnings: [avertissement])
+        #expect(Village(export: export, reference: Mini.reference).status == .ok)
+    }
+
     @Test func V6_niveauAuDessusDuMaximumConnuCompteTermine() throws {
         let v = Village(export: try Fixtures.lire("futur-05-niveau-999"), reference: Réel.reference)
         #expect(v.status == .staleReference)
@@ -162,6 +174,21 @@ extension Village {
         let mini = Mini.village([Mini.e(Mini.th, 3)], heroes: [Mini.e(Mini.king, 99)])
         #expect(mini.status == .staleReference)
         #expect(progress(of: mini, reference: Mini.reference).categories[.heroes] == Progress(done: 60, total: 60, unit: .seconds))
+        // Au-dessus du maximum de l'HDV du village, même connu de la table : canon 3 à l'HDV 2 (max 2).
+        let hdv2 = Mini.village([Mini.e(Mini.th, 2), Mini.e(Mini.cannon, 3), Mini.e(Mini.cannon, 2)])
+        #expect(hdv2.status == .staleReference)
+        #expect(progress(of: hdv2, reference: Mini.reference).categories[.defenses] == Progress(done: 40, total: 40, unit: .seconds))
+        // Réel : Roi au niveau 100 à l'HDV 16 (max 95) → bandeau, héros du Roi tous faits.
+        let texte = try Fixtures.texte("reel-hdv16")
+        let roi100 = texte.replacingOccurrences(of: #"{"data":28000000,"lvl":85"#, with: #"{"data":28000000,"lvl":100"#)
+        #expect(roi100 != texte)
+        let r = Réel.reference
+        let v100 = Village(export: try VillageExport.parse(roi100), reference: r)
+        #expect(v100.status == .staleReference)
+        #expect(Réel.village.status == .ok)
+        // Roi : min(100, 90) + 1 = 91 → 91…95 à faire (5 × 604 800 = 3 024 000 s au lieu de 5 616 000), tous faits.
+        #expect(progress(of: v100, reference: r).categories[.heroes]
+            == Progress(done: 2_419_200 + 3_024_000, total: 28_425_600 - 5_616_000 + 3_024_000, unit: .seconds))
     }
 
     @Test func V7_hdvAuDessusDuMaximumConnuSansPourcentage() throws {
@@ -174,7 +201,7 @@ extension Village {
         for export in [try VillageExport.parse(fabriqué), try Fixtures.lire("futur-04-hdv-99")] {
             let v = Village(export: export, reference: r)
             #expect(v.status == .unknownTownHall)
-            #expect(v.elements.allSatisfy { $0.level > 0 || $0.itemID == 1000097 })   // inventaire seul, rien d'ajouté
+            #expect(v.elements.allSatisfy { $0.level > 0 })   // inventaire seul, rien d'ajouté
             #expect(progress(of: v, reference: r) == ProgressReport())
             #expect(progress(of: v, reference: r).total == nil)
         }
@@ -186,9 +213,12 @@ extension Village {
         let principal = Set(Village.sections.flatMap { Réel.export.sections[$0] ?? [] }.map(\.id))
         #expect(v.elements.allSatisfy { principal.contains($0.itemID) || $0.level == 0 })
         #expect(!Réel.export.sections["buildings2", default: []].isEmpty)
-        // Assistants et Crafting Station lus et gardés ; défenses fabriquées et modules jamais ajoutés.
+        // Assistants lus et gardés. Crafting Station (sans niveau) gardée dans l'export seulement :
+        // dans le village, le niveau 0 veut toujours dire « autorisé mais absent ».
         #expect(Réel.total(v, 93000000) == 1)
-        #expect(Réel.total(v, 1000097) == 1)
+        #expect(Réel.export.entrée("buildings", 1000097) != nil)
+        #expect(v.elements(1000097).isEmpty)
+        #expect(v.elements.filter { $0.level == 0 }.allSatisfy { Réel.reference.item($0.itemID)?.category != nil })
         #expect(v.elements.filter { (102000000..<104000000).contains($0.itemID) }.isEmpty)
         // Inventé : un assistant loin de son maximum ne change rien à l'avancement.
         let avec = Mini.village(Mini.finishedBuildings, traps: [Mini.e(Mini.bomb, 2)], heroes: [Mini.e(Mini.king, 2)],

@@ -29,7 +29,8 @@ public struct Village: Sendable {
         let thKnown = th >= 1 && th <= reference.maxTownHall      // sinon V7
         var elements: [Element] = []
         var unknown: [ExportEntry] = []
-        var stale = false
+        // V5 : une section inconnue du village principal (hors base des ouvriers) vient d'une version future.
+        var stale = export.warnings.contains { $0.kind == .unknownSection && !($0.section ?? "").hasSuffix("2") }
         var present: [Int: Int] = [:]                             // exemplaires présents par type
 
         for entry in entries {
@@ -38,12 +39,15 @@ public struct Village: Sendable {
                 stale = true
                 continue
             }
+            // Hors avancement et sans niveau (Crafting Station) : reste dans l'export, jamais dans le village,
+            // pour que le niveau 0 veuille toujours dire « autorisé mais absent ».
+            if item.category == nil, entry.level == nil { continue }
             let level = entry.level ?? 0
             // Minuteur illisible gardé brut par le lecteur : en cours, fin inconnue, jamais terminé.
             let upgrading = entry.timer != nil || entry.extras["timer"] != nil
             // V4 : un équipement au niveau 1 est tenu pour non possédé.
             if item.category == .equipment, level <= 1, !upgrading { continue }
-            if level > (item.levels.map(\.level).max() ?? 0) { stale = true }   // V6
+            if thKnown, level > item.maxLevel(atTownHall: th) { stale = true }   // V6 : compté terminé, bandeau
             present[item.id, default: 0] += entry.count
             elements.append(Element(item: item, townHall: th, level: level, count: entry.count,
                                     upgradeEnds: entry.timer.map { export.date.addingTimeInterval(TimeInterval($0)) },
