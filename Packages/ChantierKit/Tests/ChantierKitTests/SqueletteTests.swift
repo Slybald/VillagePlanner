@@ -15,7 +15,7 @@ import Testing
     let village = Village(export: export, reference: reference)
     #expect(village.date == export.date)
     _ = progress(of: village, reference: reference)
-    #expect(remainingSteps(of: village, reference: reference, profile: Profile()).isEmpty)
+    #expect(remainingSteps(of: village, reference: reference, profile: Profile(), now: Date(timeIntervalSince1970: 0)).isEmpty)
     _ = makePlan(for: village, reference: reference, advice: AdviceData(),
                  profile: Profile(), now: Date(timeIntervalSince1970: 0))
 }

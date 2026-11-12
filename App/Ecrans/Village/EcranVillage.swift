@@ -10,6 +10,7 @@ struct EcranVillage: View {
     @State private var chemin: [ChantierKit.Category] = Self.cheminDeCapture()
 
     private var village: Village { affiche.village }
+    private var restant: RestantAffiche { RestantAffiche(affiche: affiche, reference: reference) }
 
     /// Débogage seulement : `-categorie <défenses|…>` ouvre la catégorie au lancement (captures).
     private static func cheminDeCapture() -> [ChantierKit.Category] {
@@ -50,10 +51,21 @@ struct EcranVillage: View {
     private var categories: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Catégories").etiquetteCarnet().padding(.bottom, Theme.Espace.s)
+            let restant = restant
+            if let mention = restant.mentionReduction {
+                Text(mention).font(Theme.Police.detail).foregroundStyle(Theme.Couleur.encreDouce)
+                    .padding(.bottom, Theme.Espace.s)
+            }
             ForEach(ChantierKit.Category.ordreAffichage, id: \.self) { categorie in
                 NavigationLink(value: categorie) {
                     HStack(spacing: Theme.Espace.m) {
-                        resume(categorie)
+                        VStack(alignment: .leading, spacing: Theme.Espace.xs) {
+                            resume(categorie)
+                            if let reste = restant.resume(categorie) {
+                                Text(reste).font(Theme.Police.chiffreDetail).foregroundStyle(Theme.Couleur.encreDouce)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         Image(systemName: "chevron.right")
                             .font(Theme.Police.detail)
                             .foregroundStyle(Theme.Couleur.encreDouce)

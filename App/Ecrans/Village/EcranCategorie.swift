@@ -17,6 +17,7 @@ struct EcranCategorie: View {
         let tous = Elements.de(categorie, village: affiche.village, reference: reference)
         let restants = tous.filter { !$0.estTermine }
         let termines = tous.filter(\.estTermine)
+        let restant = RestantAffiche(affiche: affiche, reference: reference)
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -24,6 +25,10 @@ struct EcranCategorie: View {
                 VStack(alignment: .leading, spacing: Theme.Espace.l) {
                     if let progression = affiche.rapport.categories[categorie], progression.hasWork {
                         LigneCategorie(nom: categorie.nom, valeur: progression.fraction, avecJauge: true)
+                        if let reste = restant.resume(categorie) { Text(reste).font(Theme.Police.chiffreDetail).foregroundStyle(Theme.Couleur.encreDouce) }
+                    }
+                    if let mention = restant.mentionReduction {
+                        Text(mention).font(Theme.Police.detail).foregroundStyle(Theme.Couleur.encreDouce)
                     }
                     if tous.isEmpty {
                         Text("Rien dans cette catégorie à ton HDV.")
@@ -34,7 +39,7 @@ struct EcranCategorie: View {
                             Text("Reste à faire").etiquetteCarnet().padding(.bottom, Theme.Espace.xs)
                             Filet()
                             ForEach(Array(restants.enumerated()), id: \.offset) { _, e in
-                                LigneElement(element: e.element, nom: e.fiche.name)
+                                LigneElement(element: e.element, nom: e.fiche.name, complement: restant.complement(e.element))
                                 Filet()
                             }
                         }

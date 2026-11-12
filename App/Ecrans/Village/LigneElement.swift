@@ -2,7 +2,7 @@ import ChantierKit
 import SwiftUI
 
 /// Un groupe d'exemplaires identiques : nom, niveau actuel et maximum, minuteur.
-/// `complement` reçoit plus tard le temps et le coût restants (T10) sans toucher au reste.
+/// `complement` : le temps et le coût restants (T10).
 struct LigneElement: View {
     let element: Element
     let nom: String
