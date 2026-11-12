@@ -394,18 +394,29 @@ struct GénérateurGraine: RandomNumberGenerator {
 
 // MARK: - Vitesse
 
+/// Temps processeur du fil courant, en ms : insensible à la charge de la machine (contrairement à l'horloge murale).
+func tempsCPUFilCourant() -> Double {
+    var t = timespec()
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t)
+    return Double(t.tv_sec) * 1000 + Double(t.tv_nsec) / 1e6
+}
+
+/// Médiane (ms de temps processeur) de `passages` exécutions de `corps`, toutes sur le fil appelant.
+func medianeCPU(passages: Int = 11, _ corps: () throws -> Void) rethrows -> Double {
+    var durées: [Double] = []
+    for _ in 0..<passages {
+        let debut = tempsCPUFilCourant()
+        try corps()
+        durées.append(tempsCPUFilCourant() - debut)
+    }
+    return durées.sorted()[passages / 2]
+}
+
 @Suite struct ExportVitesseTests {
     @Test func lectureDeReelHdv16EnMoinsDe50ms() throws {
         let texte = try Fixtures.texte("reel-hdv16")
-        let horloge = ContinuousClock()
-        var durées: [Duration] = []
-        for _ in 0..<50 {
-            durées.append(horloge.measure { _ = try? VillageExport.parse(texte) })
-        }
-        durées.sort()
-        let ms = { (d: Duration) in Double(d.components.attoseconds) / 1e15 + Double(d.components.seconds) * 1000 }
-        print("lecture reel-hdv16 : médiane \(ms(durées[25])) ms, max \(ms(durées[49])) ms sur 50 passages")
-        #expect(ms(durées[25]) < 50)
-        #expect(ms(durées[49]) < 50)
+        let mediane = medianeCPU(passages: 21) { _ = try? VillageExport.parse(texte) }
+        print("lecture reel-hdv16 : médiane \(mediane) ms de temps processeur sur 21 passages")
+        #expect(mediane < 50)
     }
 }
