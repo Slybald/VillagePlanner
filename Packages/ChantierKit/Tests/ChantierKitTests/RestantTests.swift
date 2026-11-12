@@ -98,7 +98,8 @@ extension [UpgradeStep] {
     @Test func Q1_niveauDeLHdvJamaisAFaireASonPropreHdv() {
         // HDV 3 au maximum de l'HDV 3 : aucun pas ; en amélioration vers le 4 : toujours aucun.
         #expect(Rest.steps(Rest.village([e(c, 3, 2)])).of(Rest.th).isEmpty)
-        let enCours = Rest.village([e(c, 3, 2)], other: ["buildings": [e(Rest.th, 3, timer: 99)]])
+        let enCours = Rest.village([e(c, 3, 2), e(Rest.th, 3, timer: 99)])
+        #expect(enCours.elements(Rest.th).contains { $0.upgrading })
         #expect(Rest.steps(enCours).of(Rest.th).isEmpty)
     }
 
@@ -261,6 +262,14 @@ extension [UpgradeStep] {
         let r = Rest.referenceFusion
         let t = Rest.steps(Rest.village([e(c, 1, 3)], reference: r), reference: r).of(c)
         #expect(t.map(\.level) == [2, 2, 3] && t.map(\.count) == [2, 1, 1])
+    }
+
+    @Test func Q6_exemplaireConsommeDejaEnCoursGardeSonPasEnCours() {
+        // Canon 2 → 3 en cours, au-delà du plafond 2 : le minuteur est réel, son pas reste « en cours ».
+        let r = Rest.referenceFusion
+        let s = Rest.steps(Rest.village([e(c, 2, timer: 500), e(c, 1)], reference: r), reference: r).of(c)
+        #expect(s.map(\.level) == [3, 2])
+        #expect(s[0].isInProgress && s[0].remaining == 500 && s[1].status == .todo)
     }
 
     @Test func Q6_fusionFaiteNeChangeRien() {

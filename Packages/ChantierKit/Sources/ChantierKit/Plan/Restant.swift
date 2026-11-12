@@ -8,7 +8,8 @@ import Foundation
 //  Q3  les réductions du profil, tant qu'elles ne sont pas finies à la date de départ ;
 //  Q4  les sommes par catégorie et par ressource ;
 //  Q5  le poste et les prérequis de chaque pas ;
-//  Q6  une fusion pas encore faite ne double pas le compte de ses bâtiments d'origine ;
+//  Q6  une fusion pas encore faite ne double pas le compte de ses bâtiments d'origine (un exemplaire consommé
+//      déjà en cours au-delà du plafond garde son pas « en cours » : le minuteur est réel) ;
 //  Q7  rien hors avancement.
 
 /// Un niveau à faire : coût, durée, poste, prérequis. Un pas décrit `count` exemplaires identiques ;
@@ -120,7 +121,8 @@ public func remainingSteps(of village: Village, reference: ReferenceData, profil
 /// Q6 : Village ajoute un bâtiment fusionné pas encore fait (niveau 0) sans retirer ses bâtiments d'origine.
 /// Ceux-ci n'ont alors à monter que jusqu'au niveau que la fusion exige : au-delà, l'exemplaire sera consommé
 /// et son niveau supérieur ferait double compte avec le niveau 1 du bâtiment fusionné. Les exemplaires
-/// consommés sont les plus avancés. Renvoie chaque élément (scindé si besoin) avec son plafond de niveau.
+/// consommés sont les plus avancés. Le pas « en cours » d'un exemplaire consommé reste, même au-delà du plafond :
+/// le minuteur est réel et occupe un ouvrier. Renvoie chaque élément (scindé si besoin) avec son plafond de niveau.
 private func splitMergeConsumed(_ village: Village, _ reference: ReferenceData) -> [(Element, cap: Int?)] {
     // Un plafond par exemplaire consommé, par bâtiment d'origine.
     var caps: [Int: [Int]] = [:]
