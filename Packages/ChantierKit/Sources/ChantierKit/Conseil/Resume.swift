@@ -40,6 +40,21 @@ public struct PasCandidat: Sendable, Equatable {
     /// Coût de tous les exemplaires lancés ensemble.
     public let couts: [ResourceAmount]
     public let poste: WorkerKind
+    /// Les éléments que ce niveau exige (autre bâtiment à un niveau donné) : la raison peut les nommer.
+    public let prerequis: [Int]
+
+    public init(id: Int, nom: String, niveau: Int, copies: Int, debut: Date, maintenant: Bool, couts: [ResourceAmount],
+                poste: WorkerKind, prerequis: [Int] = []) {
+        self.id = id
+        self.nom = nom
+        self.niveau = niveau
+        self.copies = copies
+        self.debut = debut
+        self.maintenant = maintenant
+        self.couts = couts
+        self.poste = poste
+        self.prerequis = prerequis
+    }
 }
 
 public struct ResumeConseil: Sendable, Equatable {
@@ -73,11 +88,20 @@ public struct ResumeConseil: Sendable, Equatable {
 
     public func candidat(_ id: Int) -> PasCandidat? { candidats.first { $0.id == id } }
 
-    /// Le schéma imposé à l'API : `premier` et `ensuite` sont des énumérations des identifiants permis.
+    /// Le tout premier moment du plan : `premier` démarre à cet instant.
+    public var premierMoment: Date? { candidats.map(\.debut).min() }
+
+    /// Les identifiants permis pour `premier` : les pas qui démarrent au tout premier moment.
+    public var premiersPermis: [Int] {
+        var vus = Set<Int>()
+        return candidats.filter { $0.debut == premierMoment }.map(\.id).filter { vus.insert($0).inserted }
+    }
+
+    /// Le schéma imposé à l'API : `premier` énumère les pas du tout premier moment, `ensuite` les trois premiers lancements.
     /// (Les longueurs ne se contraignent pas dans un schéma : la raison est bornée par les garde-fous.)
     public var schema: String {
-        let ids = identifiantsPermis.map(String.init).joined(separator: ",")
-        return #"{"type":"object","properties":{"premier":{"type":"integer","enum":["# + ids + #"]},"raison":{"type":"string"},"ensuite":{"anyOf":[{"type":"integer","enum":["# + ids + #"]},{"type":"null"}]}},"required":["premier","raison","ensuite"],"additionalProperties":false}"#
+        let ids = identifiantsPermis.map(String.init).joined(separator: ","), premiers = premiersPermis.map(String.init).joined(separator: ",")
+        return #"{"type":"object","properties":{"premier":{"type":"integer","enum":["# + premiers + #"]},"raison":{"type":"string"},"ensuite":{"anyOf":[{"type":"integer","enum":["# + ids + #"]},{"type":"null"}]}},"required":["premier","raison","ensuite"],"additionalProperties":false}"#
     }
 
     /// `plan` et `besoins` viennent du moteur ; `consigneMoteur` est sa consigne (le modèle la reformule).
@@ -228,7 +252,7 @@ func premiersChoix(plan: Plan, reference: ReferenceData) -> [PasCandidat] {
         return PasCandidat(id: s.step.itemID, nom: reference.name(of: s.step.itemID) ?? "#\(s.step.itemID)", niveau: s.step.level,
                            copies: copies, debut: s.start, maintenant: s.start <= plan.now,
                            couts: Resource.allCases.compactMap { r in totaux[r].flatMap { $0 > 0 ? ResourceAmount(resource: r, amount: $0) : nil } },
-                           poste: s.worker)
+                           poste: s.worker, prerequis: s.step.requires.map(\.itemID))
     }
 }
 
@@ -252,17 +276,18 @@ extension ResumeConseil {
         func pas(_ c: PasCandidat) -> String { "\(c.nom) \(c.niveau)" + (c.copies > 1 ? " (×\(c.copies))" : "") }
         let quand = p.maintenant ? "Maintenant" : maj(Lisible.moment(p.debut, now: maintenant, timeZone: fuseau))
         var phrases = ["\(quand), lance \(pas(p)) : \(raison.prefix(1).lowercased() + raison.dropFirst())."]
-        var ensemble = [p]
+        var cites = [p]
         if let e {
+            cites.append(e)
             let memeInstant = e.maintenant && p.maintenant || e.debut == p.debut
-            if memeInstant { ensemble.append(e) }
             phrases.append("Puis \(pas(e))" + (memeInstant || e.maintenant ? "" : " " + Lisible.moment(e.debut, now: maintenant, timeZone: fuseau)) + ".")
         }
+        // « Prépare » couvre tout ce que la consigne cite, le second lancement compris.
         let couts = Resource.allCases.compactMap { r -> String? in
-            let total = ensemble.reduce(0) { $0 + $1.couts.filter { $0.resource == r }.reduce(0) { $0 + $1.amount } }
+            let total = cites.reduce(0) { $0 + $1.couts.filter { $0.resource == r }.reduce(0) { $0 + $1.amount } }
             return total > 0 ? Lisible.cout(total, r) : nil
         }
-        if !couts.isEmpty { phrases.append((p.maintenant ? "Il te faut " : "Prépare ") + couts.joined(separator: " et ") + ".") }
+        if !couts.isEmpty { phrases.append((cites.allSatisfy(\.maintenant) ? "Il te faut " : "Prépare ") + couts.joined(separator: " et ") + ".") }
         return phrases.joined(separator: " ")
     }
 }

@@ -147,13 +147,17 @@ private func simple(_ t: String) -> String { t.replacingOccurrences(of: insecabl
         #expect(verdict("c'est un héros", ensuite: 42) == .refusee(.identifiant(42)))
         #expect(verdict("c'est un héros", ensuite: hors) == .refusee(.identifiant(hors)))
         #expect(verdict("c'est un héros", ensuite: premier.id) == .refusee(.identifiant(premier.id)))      // ensuite ≠ premier
-        #expect(acceptee("c'est un héros", premier: second.id, ensuite: premier.id))                        // un autre des trois premiers
-        #expect(acceptee("c'est un héros", premier: troisieme.id))
+        #expect(acceptee("c'est un héros", premier: second.id, ensuite: premier.id))                        // même instant : permis
+        // `premier` démarre au tout premier moment du plan ; `ensuite` en même temps ou après (cas de la relecture : Caserne 8 h 15, puis Animalerie 7 h).
+        #expect(troisieme.debut > premier.debut)
+        #expect(verdict("c'est un héros", premier: troisieme.id) == .refusee(.identifiant(troisieme.id)))
+        #expect(verdict("c'est un héros", premier: troisieme.id, ensuite: premier.id) == .refusee(.identifiant(troisieme.id)))
+        #expect(acceptee("c'est un héros", premier: premier.id, ensuite: troisieme.id))                     // plus tard : permis
     }
 
     @Test func G2_nomEtranger_faitRejeterLaReponse() {
         #expect(verdict("la Reine des archères en profite") == .refusee(.nom("reine des archeres")))
-        #expect(verdict("ton Hôtel de ville en profite") == .refusee(.nom("hotel de ville")))
+        #expect(verdict("le Roi des barbares en profite") == .refusee(.nom("roi des barbares")))
         #expect(verdict("la \(troisieme.nom) en profite") == .refusee(.nom(Nombres.replier(troisieme.nom))))       // choix non retenu
         #expect(acceptee("la \(troisieme.nom) en profite", ensuite: troisieme.id))                                  // retenu : permis
         #expect(acceptee("l'\(premier.nom) débloque d'autres améliorations"))
@@ -202,6 +206,70 @@ private func simple(_ t: String) -> String { t.replacingOccurrences(of: insecabl
         #expect(acceptee("c'est un héros, il compte beaucoup pour ton profil"))
     }
 
+    @Test func forme_lettresLatinesSeulement_ni_homoglyphe_ni_accentCombinant() {
+        // Un « е » ou un « а » cyrillique cache « ne » et « pas » à la liste noire : seules les lettres latines passent.
+        #expect(!acceptee("elle compte pour ton profil, nе lance pаs ça"))
+        #expect(verdict("elle compte pour ton profil, nе lance pаs ça") == .refusee(.interdit("е")))
+        #expect(!acceptee("elle compte pour ton profil, lаnce la vite"))
+        #expect(!acceptee("elle compte pour ton profil, a\u{0308}\u{0301}"))             // accents combinants sans lettre précomposée
+        #expect(!acceptee("elle compte pour ton profil, ελληνικά"))
+        #expect(acceptee("elle débloque d'autres améliorations, c'est un bon début"))     // é, è, ç : latines
+        #expect(acceptee("elle débloque d’autres améliorations"))                         // apostrophe typographique
+        #expect(acceptee("elle d\u{0065}\u{0301}bloque d'autres améliorations"))         // é décomposé : recomposé avant le contrôle
+    }
+
+    @Test func forme_chiffresRomainsEtOrdinaux_sontRefuses() {
+        for raison in ["passe au niveau XII", "l'\(premier.nom) IX débloque tout", "elle monte au niveau xii", "c'est le douzième niveau", "la deuxième de ta liste",
+                       "elle est en seconde position", "la troisième amélioration", "année MMXXVI pour toi", "le niveau viii compte"] {
+            #expect(!acceptee(raison), "« \(raison) »")
+        }
+        #expect(acceptee("c'est le bon choix pour ton profil"))        // « ici », « civil », « mi » : pas des chiffres romains
+        #expect(acceptee("elle sert ici, comme un civil au village"))
+    }
+
+    @Test func G2_toutMotAMajuscule_horsDebutDePhrase_estUnNomPermisOuUnRejet() {
+        #expect(verdict("elle sert pour la Tour d'archère") == .refusee(.nom("Tour")))
+        #expect(!acceptee("elle sert pour la Forteresse des ombres"))
+        #expect(!acceptee("elle sert pour le Grand Gardien"))
+        #expect(!acceptee("elle sert à ton HDV"))
+        #expect(acceptee("L'\(premier.nom) débloque d'autres améliorations"))                // début de phrase, nom du premier
+        #expect(acceptee("elle sert pour l'\(premier.nom), c'est un bon choix"))               // nom du premier, au milieu
+        #expect(acceptee("Elle débloque d'autres améliorations"))
+        #expect(acceptee("C'est un bon choix pour ton profil"))                            // « C' » n'est pas un chiffre romain
+    }
+
+    @Test func forme_troisMotsAuMoins_dontUnMotOutilFrancais() {
+        for raison in ["ok", "bof", "do not launch this one", "skip it and wait", "just wait it out", "bon choix", "lance maintenant"] {
+            #expect(!acceptee(raison), "« \(raison) »")
+        }
+        #expect(verdict("ok") == .refusee(.interdit("phrase")))
+        #expect(acceptee("c'est un bon choix"))
+    }
+
+    @Test func forme_listeNoireElargie() {
+        for raison in ["elle est inutile pour toi", "elle est facultative pour toi", "tu peux sauter celle-ci pour toi", "ignore celle-ci pour ton profil",
+                       "reporte celle-ci pour ton profil", "c'est la dernière de ton plan", "elle est secondaire pour ton profil", "elle est dangereuse pour toi",
+                       "elle est gratuite pour toi", "elle est terminée pour toi", "à faire tout de suite pour toi", "avant midi pour ton profil", "elle sert pour l'année"] {
+            #expect(!acceptee(raison), "« \(raison) »")
+        }
+    }
+
+    @Test func faussesPositifs_plusHorsNombre_hotelDeVilleEnPrerequis_pointDExclamation() {
+        #expect(acceptee("c'est la plus utile pour ton profil"))
+        #expect(acceptee("elle est plus forte que les autres"))
+        #expect(!acceptee("elle demande plus de temps pour ton profil"))          // « plus de » reste refusé
+        #expect(acceptee("elle débloque d'autres améliorations!"))
+        #expect(!acceptee("elle débloque d'autres améliorations!!"))
+        // L'hôtel de ville : permis quand c'est le prérequis (ou l'élément lui-même) du premier ou du second, sinon refusé.
+        let hdv = id("Hôtel de ville")
+        let avec = PasCandidat(id: premier.id, nom: premier.nom, niveau: premier.niveau, copies: 1, debut: premier.debut, maintenant: false, couts: [],
+                               poste: .builder, prerequis: [hdv])
+        let sans = PasCandidat(id: premier.id, nom: premier.nom, niveau: premier.niveau, copies: 1, debut: premier.debut, maintenant: false, couts: [], poste: .builder)
+        func r(_ c: PasCandidat) -> ResumeConseil { ResumeConseil(texte: "", candidats: [c], maintenant: Réel.village.date, fuseau: TimeZone(identifier: "UTC")!) }
+        #expect(acceptee("elle demande ton hôtel de ville pour progresser", dans: r(avec)))
+        #expect(!acceptee("elle demande ton hôtel de ville pour progresser", dans: r(sans)))
+    }
+
     @Test func attaques_aucuneReponseFausseAcceptee_etLesContrôlesHonnetesPassent() {
         let attaques = Attaques.attaques(resume: resume, reference: reference)
         #expect(attaques.count >= 57, "\(attaques.count) attaques")
@@ -219,12 +287,12 @@ private func simple(_ t: String) -> String { t.replacingOccurrences(of: insecabl
 
     // MARK: - Le schéma impose la liste fermée
 
-    @Test func schema_premierEtEnsuite_sontDesEnumerationsDesTroisPremiersIdentifiants() throws {
-        let attendu = resume.identifiantsPermis
-        #expect(attendu.count >= 2 && attendu.count <= ResumeConseil.choixMax)
+    @Test func schema_premierEtEnsuite_sontDesEnumerationsDesIdentifiantsDuPlan() throws {
+        let attendu = resume.identifiantsPermis, premiers = resume.premiersPermis
+        #expect(attendu.count >= 2 && attendu.count <= ResumeConseil.choixMax && !premiers.isEmpty && premiers.count < attendu.count + 1)
         let json = try #require(JSONSerialization.jsonObject(with: Data(resume.schema.utf8)) as? [String: Any])
         let props = try #require(json["properties"] as? [String: Any])
-        #expect((props["premier"] as? [String: Any])?["enum"] as? [Int] == attendu)
+        #expect((props["premier"] as? [String: Any])?["enum"] as? [Int] == premiers)        // les pas du tout premier moment
         let anyOf = try #require((props["ensuite"] as? [String: Any])?["anyOf"] as? [[String: Any]])
         #expect(anyOf[0]["enum"] as? [Int] == attendu && anyOf[1]["type"] as? String == "null")
         #expect(json["required"] as? [String] == ["premier", "raison", "ensuite"] && json["additionalProperties"] as? Bool == false)
@@ -238,7 +306,7 @@ private func simple(_ t: String) -> String { t.replacingOccurrences(of: insecabl
         let format = try #require(((json["output_config"] as? [String: Any])?["format"]) as? [String: Any])
         let schema = try #require(format["schema"] as? [String: Any])
         let premierEnum = ((schema["properties"] as? [String: Any])?["premier"] as? [String: Any])?["enum"] as? [Int]
-        #expect(premierEnum == resume.identifiantsPermis)
+        #expect(premierEnum == resume.premiersPermis)
     }
 
     // MARK: - G3 : tout échec montre la consigne du moteur, sans alerte

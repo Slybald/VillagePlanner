@@ -9,8 +9,9 @@ import Foundation
 //      schéma le dit, l'app le revérifie) et la raison ne nomme que ces éléments (plus le poste du premier : laboratoire,
 //      forgeron, animalerie) ;
 //  G3  repli silencieux : tout échec (voir `Conseiller`) montre la consigne du moteur, sans alerte.
-// La raison est aussi bornée dans sa forme : une phrase de 140 caractères au plus, faite de lettres, d'espaces, de virgules,
-// d'apostrophes et de traits d'union ; elle ne contient ni négation, ni mot de la liste noire. Une raison qui contredirait
+// La raison est aussi bornée dans sa forme : une phrase française de 140 caractères au plus (trois mots, un mot outil), faite de
+// lettres latines, d'espaces, de virgules, d'apostrophes et de traits d'union ; ni chiffre romain, ni ordinal, ni négation, ni mot de la
+// liste noire, ni mot à majuscule qui ne soit un nom permis. Une raison qui contredirait
 // le plan par ses seuls mots (« ne lance pas », « d'abord », « plus de ») ne passe pas.
 // Décision : un nom du jeu qui n'est pas celui de `premier`, de `ensuite` ou de leur poste fait rejeter la réponse, même de
 // bonne foi : un garde-fou trop prudent coûte un repli, un garde-fou trop lâche coûte une fausse consigne.
@@ -47,38 +48,62 @@ public enum Verdict: Equatable, Sendable {
 public enum GardeFous {
     public static let raisonMax = 140
 
-    /// Mots et tournures refusés dans la raison : affirmations de date, d'ordre, de quantité, de ressource ou de négation
-    /// que rien ne vérifie (liste de la relecture adverse, PR 23, élargie).
+    /// Mots et tournures refusés dans la raison : affirmations de date, d'ordre, de rang, de quantité, de ressource, de négation ou
+    /// de jugement que rien ne vérifie (listes de la relecture adverse, PR 23, élargies). « plus » et « moins » seuls sont permis
+    /// (« la plus utile ») : seuls « plus de » et « moins de » sont refusés, avec les négations.
     static let listeNoire = [
-        "gemmes?", "http", "https", "www", "avant", "apres", "d'abord", "premier", "premiere", "premiers", "prioritaire", "priorite",
-        "en tete", "en priorite", "ne", "pas", "rien", "jamais", "aucun", "aucune", "nul", "nulle", "non", "ni", "plus", "moins",
-        "environ", "presque", "quasi", "mur", "murs", "rempart", "remparts", "ressources?", "or", "elixir", "minerai", "ouvriers?",
-        "libres?", "libere", "liberent", "maintenant", "demain", "hier", "aujourd'hui", "soir", "matin", "nuit", "semaines?", "jours?",
-        "heures?", "minutes?", "mois", "ans?", "week-end", "janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout",
-        "septembre", "octobre", "novembre", "decembre",
+        "gemmes?", "http", "https", "www", "avant", "apres", "d'abord", "premier", "premiere", "premiers", "premieres", "second", "seconde",
+        "dernier", "derniere", "derniers", "dernieres", "prioritaire", "priorite", "en tete", "en priorite", "ne", "pas", "rien", "jamais",
+        "aucun", "aucune", "nul", "nulle", "non", "ni", "plus de", "moins de", "environ", "presque", "quasi", "mur", "murs", "rempart",
+        "remparts", "ressources?", "or", "elixir", "minerai", "ouvriers?", "libres?", "libere", "liberent", "maintenant", "demain", "hier",
+        "aujourd'hui", "soir", "matin", "nuit", "midi", "semaines?", "jours?", "heures?", "minutes?", "mois", "ans?", "annees?", "week-end",
+        "janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre",
+        "inutiles?", "facultatifs?", "facultatives?", "sauter", "saute", "ignore", "ignorer", "reporte", "reporter", "secondaires?",
+        "dangereu(?:x|ses?)", "gratuites?", "gratuits?", "terminees?", "termines?", "tout de suite",
     ]
     private static let motifListeNoire = try! NSRegularExpression(
-        pattern: #"(?<![a-z])(?:"# + listeNoire.joined(separator: "|") + #")(?![a-z])|(?<![a-z])n'"#)
-    private static let autorises = CharacterSet.letters.union(CharacterSet(charactersIn: " ,'’-"))
+        pattern: #"(?<![a-z])(?:"# + listeNoire.joined(separator: "|") + #")(?![a-z])|(?<![a-z])n'|[a-z]+ieme(?:s)?(?![a-z])"#)
+    /// Mots outils du français : une raison en contient au moins un (et compte au moins trois mots).
+    private static let motsOutils: Set<String> = ["de", "du", "des", "la", "le", "les", "un", "une", "ton", "ta", "tes", "il", "elle", "ils", "elles", "pour",
+                                                  "et", "qui", "que", "dans", "sur", "avec", "ce", "cette", "c", "d", "l", "au", "aux", "son", "sa", "ses"]
+    private static let motifRomain = try! NSRegularExpression(
+        pattern: #"(?<![A-Za-zÀ-ÿ])(?:[IVXLCDM]+(?![’'])|(?=[ivxlcdm]{3})m{0,3}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3}))(?![A-Za-zÀ-ÿ])"#)
+
+    /// Lettres latines (U+0041 à U+024F) seulement, avec espace, virgule, apostrophes et trait d'union : ni cyrillique, ni grec,
+    /// ni accent combinant, ni symbole.
+    private static func autorise(_ c: Unicode.Scalar) -> Bool {
+        if " ,'’-".unicodeScalars.contains(c) { return true }
+        return (0x41...0x24F).contains(c.value) && c.properties.isAlphabetic
+    }
 
     public static func verifier(_ reponse: ReponseConseil, resume: ResumeConseil, reference: ReferenceData) -> Verdict {
         // G2 : les identifiants (le schéma de la requête les énumère déjà ; l'app ne s'y fie pas).
-        guard let premier = resume.candidat(reponse.premier) else { return .refusee(.identifiant(reponse.premier)) }
+        // `premier` démarre au tout premier moment du plan ; `ensuite` en même temps ou après.
+        guard let premier = resume.candidat(reponse.premier), premier.debut == resume.premierMoment else { return .refusee(.identifiant(reponse.premier)) }
         var ensuite: PasCandidat?
         if let id = reponse.ensuite {
-            guard id != reponse.premier, let c = resume.candidat(id) else { return .refusee(.identifiant(id)) }
+            guard id != reponse.premier, let c = resume.candidat(id), c.debut >= premier.debut else { return .refusee(.identifiant(id)) }
             ensuite = c
         }
-        // La raison : une phrase, un point final au plus.
-        var raison = reponse.raison.trimmingCharacters(in: .whitespacesAndNewlines)
-        if raison.hasSuffix(".") { raison.removeLast() }
+        // La raison : une phrase, un point ou un point d'exclamation final au plus.
+        var raison = reponse.raison.precomposedStringWithCanonicalMapping.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raison.hasSuffix(".") || raison.hasSuffix("!") { raison.removeLast() }
         if raison.isEmpty { return .refusee(.vide) }
         if raison.count > raisonMax { return .refusee(.trop(caracteres: raison.count)) }
         // G1 : ni chiffre (de toute écriture), ni nombre, heure, date, jour ou quantité vague.
         if let c = raison.first(where: { $0.isNumber }) { return .refusee(.nombre(String(c))) }
         if let l = Nombres.lire(raison).first { return .refusee(.nombre(l.extrait)) }
-        // G2 : les noms d'éléments.
-        var permis = Set([premier.id] + (ensuite.map { [$0.id] } ?? []))
+        // Forme : lettres latines, espaces, virgules, apostrophes, traits d'union ; pas de chiffres romains.
+        if let c = raison.unicodeScalars.first(where: { !autorise($0) }) { return .refusee(.interdit(String(c))) }
+        let tout = NSRange(raison.startIndex..., in: raison)
+        if let m = motifRomain.firstMatch(in: raison, range: tout) { return .refusee(.nombre((raison as NSString).substring(with: m.range))) }
+        // Une vraie phrase française : trois mots au moins, dont un mot outil.
+        let mots = raison.split(whereSeparator: { $0 == " " })
+        let replie = Nombres.replier(raison)
+        let jetons = replie.split(whereSeparator: { !$0.isLetter }).map(String.init)
+        if mots.count < 3 || !jetons.contains(where: motsOutils.contains) { return .refusee(.interdit("phrase")) }
+        // G2 : les noms d'éléments (ceux de `premier`, de `ensuite`, de leur poste et de leurs prérequis).
+        var permis = Set([premier.id] + premier.prerequis + (ensuite.map { [$0.id] + $0.prerequis } ?? []))
         for poste in [premier.poste] + (ensuite.map { [$0.poste] } ?? []) {
             let nom: String? = switch poste {
             case .laboratory: "Laboratoire"
@@ -91,9 +116,19 @@ public enum GardeFous {
         for (id, nom) in nomsCites(raison, reference: reference).sorted(by: { $0.key < $1.key }) where !permis.contains(id) {
             return .refusee(.nom(nom))
         }
-        // Forme : lettres, espaces, virgules, apostrophes, traits d'union ; pas de liste noire.
-        if let c = raison.unicodeScalars.first(where: { !autorises.contains($0) }) { return .refusee(.interdit(String(c))) }
-        let replie = Nombres.replier(raison)
+        // Tout mot à majuscule, hors début de phrase, est un nom : il doit être l'un de ceux qui viennent d'être permis.
+        var reste = raison
+        let noms = permis.compactMap { reference.name(of: $0) }.sorted { $0.count > $1.count }.map(NSRegularExpression.escapedPattern(for:))
+        if !noms.isEmpty, let re = try? NSRegularExpression(pattern: #"(?<![\p{L}])(?:"# + noms.joined(separator: "|") + #")s?(?![\p{L}])"#, options: .caseInsensitive) {
+            reste = re.stringByReplacingMatches(in: raison, range: tout, withTemplate: " ")
+        }
+        let lettres = try! NSRegularExpression(pattern: #"\p{L}+"#)
+        let jetonsReste = lettres.matches(in: reste, range: NSRange(reste.startIndex..., in: reste))
+        for m in jetonsReste.dropFirst(raison.first?.isLetter == true && reste.first?.isLetter == true ? 1 : 0) {
+            let mot = (reste as NSString).substring(with: m.range)
+            if mot.first?.isUppercase == true { return .refusee(.nom(mot)) }
+        }
+        // Liste noire.
         if let m = motifListeNoire.firstMatch(in: replie, range: NSRange(replie.startIndex..., in: replie)) {
             return .refusee(.interdit((replie as NSString).substring(with: m.range)))
         }

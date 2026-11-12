@@ -129,7 +129,8 @@ private func bonneReponse(_ c: Complet) -> Reponse {
         let t = c.resume.candidats[2]
         let autre = c.resume.composer(premier: p, raison: "c'est un héros", ensuite: t).replacingOccurrences(of: "\u{00A0}", with: " ")
         #expect(autre.contains("Puis \(t.nom) \(t.niveau) demain 8 h 15."))
-        #expect(autre.hasSuffix("Prépare 11 M d'élixir."))
+        // « Prépare » couvre tout ce que la consigne cite : l'Animalerie (11 M) et la Caserne (15 M).
+        #expect(autre.hasSuffix("Prépare 26 M d'élixir."))
     }
 
     // MARK: Le cache
