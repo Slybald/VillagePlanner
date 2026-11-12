@@ -35,6 +35,7 @@ struct EcranReglages: View {
                 .id("reductions")
                 seuil($modele.profil)
                 epingles($modele.profil).id("epingles")
+                SectionConseiller().id("conseiller")
                 Section {
                     NavigationLink("À propos", value: "apropos").listRowBackground(Theme.Couleur.surface)
                 }
