@@ -1,0 +1,3 @@
+// Copier ce fichier en Signature.local.xcconfig (ignoré par git), puis mettre ton identifiant d'équipe Apple
+// (Xcode > Réglages > Comptes, ou developer.apple.com > Membership). Nécessaire seulement pour installer sur l'iPhone.
+DEVELOPMENT_TEAM = ABCDE12345

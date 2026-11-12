@@ -1,0 +1,37 @@
+name: CI
+
+# Lancement manuel seulement : les minutes Mac du dépôt privé ne sont pas disponibles.
+# Les tests tournent en local avant chaque fusion. Remettre push et pull_request
+# quand le dépôt sera public ou les minutes rétablies.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    # Xcode 27 n'est pas proposé par les machines hébergées : Xcode 26 le plus récent, SDK iOS 26.
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Versions
+        run: ls /Applications | grep Xcode; xcodebuild -version && swift --version
+
+      - name: Tests de ChantierKit
+        run: swift test --package-path Packages/ChantierKit
+
+      - name: Compilation de l'app
+        run: >
+          xcodebuild -quiet -project Chantier.xcodeproj -scheme Chantier
+          -destination 'generic/platform=iOS Simulator' build
