@@ -207,9 +207,8 @@ extension Simulation {
     }
 
     /// Les dates où un assistant en pause redevient libre alors qu'une amélioration de son poste tourne : un
-    /// événement, repoussé hors des heures sans jeu (S6c) pour que le geste d'affectation soit possible.
-    func helperWakes(after t: Date, _ release: (Date) -> Date) -> [Date] {
-        crew.filter { h in h.availableAt > t && running.contains { $0.job.step.worker == h.post } }
-            .map { release($0.availableAt) }
+    /// événement. `run` le repousse hors des heures sans jeu (S6c), pour que le geste d'affectation soit possible.
+    func helperWakes(after t: Date) -> [Date] {
+        crew.filter { h in h.availableAt > t && running.contains { $0.job.step.worker == h.post } }.map(\.availableAt)
     }
 }

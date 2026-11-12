@@ -307,7 +307,7 @@ struct Simulation {
                 again = running.contains { $0.end <= t }
             }
             bindHelpers(at: t)                                                // S6
-            guard let next = (running.map(\.end) + helperWakes(after: t, release)).min() else { break }   // S7
+            guard let next = (running.map(\.end) + helperWakes(after: t)).min() else { break }   // S7
             t = release(max(next, t))
         }
     }

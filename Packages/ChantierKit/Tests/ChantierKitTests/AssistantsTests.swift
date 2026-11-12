@@ -189,7 +189,7 @@ enum Aide {
 
     @Test func S6a_helperCooldown_unAssistantSansAffectationNeSertPasAvantLaFinDeSaPause() {
         // Pas d'affectation dans la photo ; pause de 8 000 s. Le canon est lancé à 0 (100 h), l'Apprenti ne le prend
-        // qu'à 8 000 s : services à 8 000, 90 800, 173 600, 256 400 (fin 331 200 + 8 000 − …) ; on lit le premier.
+        // qu'à 8 000 s : services à 8 000, 90 800, 173 600, 256 400 (toutes les 82 800 s), fin à 331 200 s.
         let p = A.plan([A.canon([100])], ["buildings": [P.e(P.cannon, 1)]], Assistants(helpers: [A.app(2, cooldown: 8000)]))
         #expect(S.offset(p.helperServices[0].start) == 8000)
         #expect(p.helperServices.map { S.offset($0.start) } == [8000, 90_800, 173_600, 256_400])
