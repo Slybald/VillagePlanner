@@ -37,11 +37,12 @@ final class ModeleApp {
     /// Le profil de jeu : tout changement est enregistré et recalcule le plan.
     var profil = Profile() {
         didSet {
-            guard profil != oldValue else { return }
+            guard pret, profil != oldValue else { return }   // rien d'écrit pendant l'init
             profilStore.save(profil)
             rafraichirPlan()
         }
     }
+    @ObservationIgnored private var pret = false
     /// Les Réglages sont ouverts (feuille sur l'écran Cap).
     var reglagesOuverts = false
     /// Ce qui a monté de niveau au dernier import (type → nouveau niveau → ancien), pour l'animation.
@@ -86,6 +87,9 @@ final class ModeleApp {
         #if DEBUG
         // Captures : `-reduction <pourcentage>` met une réduction d'ouvriers sans fin, sans l'enregistrer.
         let pourcentage = arguments.integer(forKey: "reduction")
+        // `-profil-b64 <JSON en base 64>` : un profil de capture, sans l'enregistrer (une accolade brute serait lue comme une liste de propriétés).
+        if let b64 = arguments.string(forKey: "profil-b64"), let data = Data(base64Encoded: b64),
+           let p = try? JSONDecoder().decode(Profile.self, from: data) { profil = p }
         if pourcentage > 0 { profil.builderReduction = Reduction(percent: pourcentage, endsAt: .distantFuture) }
         if arguments.bool(forKey: "reglages") { reglagesOuverts = true }
         #endif
@@ -103,6 +107,7 @@ final class ModeleApp {
         }
         if let ecran = arguments.string(forKey: "ecran"), let demande = OngletApp(rawValue: ecran) { onglet = demande }
         rafraichirPressePapiers()
+        pret = true
     }
 
     // MARK: Import
