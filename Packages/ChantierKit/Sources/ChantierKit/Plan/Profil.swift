@@ -16,8 +16,36 @@ public struct Reduction: Sendable, Equatable, Codable {
     public func percent(at date: Date) -> Int { date < endsAt ? min(max(percent, 0), 100) : 0 }
 }
 
+/// Les heures où le joueur ne lance rien (S4), de `start` heure à `end` heure dans `timeZone`.
+/// La plage peut passer minuit (23 h → 7 h) ; `start == end` : aucune plage.
+public struct QuietHours: Sendable, Equatable, Codable {
+    public var start: Int
+    public var end: Int
+    public var timeZone: TimeZone
+
+    /// 23 h → 7 h, heure de Paris (l'app passera le fuseau de l'appareil).
+    public static let `default` = QuietHours(start: 23, end: 7, timeZone: TimeZone(identifier: "Europe/Paris")!)
+
+    public init(start: Int, end: Int, timeZone: TimeZone) {
+        self.start = start
+        self.end = end
+        self.timeZone = timeZone
+    }
+
+    /// `date` hors plage : `date` ; dans la plage : sa fin.
+    public func release(_ date: Date) -> Date {
+        let (s, e) = ((start % 24 + 24) % 24, (end % 24 + 24) % 24)
+        guard s != e else { return date }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let h = calendar.component(.hour, from: date)
+        guard s < e ? (h >= s && h < e) : (h >= s || h < e) else { return date }
+        return calendar.nextDate(after: date, matching: DateComponents(hour: e, minute: 0, second: 0),
+                                 matchingPolicy: .nextTime) ?? date
+    }
+}
+
 /// Le profil de jeu : orientation, héros, épingles, heures sans jeu, réductions.
-/// Les heures sans jeu arrivent avec T13.
 public struct Profile: Sendable, Equatable, Codable {
     /// Ouvriers : bâtiments, pièges, murs, héros.
     public var builderReduction: Reduction?
@@ -29,16 +57,19 @@ public struct Profile: Sendable, Equatable, Codable {
     /// Identifiants des types épinglés (« je veux ça d'abord ») : en tête de leur poste.
     public var pinned: Set<Int>
     public var nextTownHallThreshold: TownHallThreshold
+    /// Heures sans jeu (S4) ; nil : on lance à toute heure.
+    public var quietHours: QuietHours?
 
     public init(builderReduction: Reduction? = nil, laboratoryReduction: Reduction? = nil,
                 orientation: Orientation = .balanced, heroLimit: Int? = nil, pinned: Set<Int> = [],
-                nextTownHallThreshold: TownHallThreshold = .complete) {
+                nextTownHallThreshold: TownHallThreshold = .complete, quietHours: QuietHours? = .default) {
         self.builderReduction = builderReduction
         self.laboratoryReduction = laboratoryReduction
         self.orientation = orientation
         self.heroLimit = heroLimit
         self.pinned = pinned
         self.nextTownHallThreshold = nextTownHallThreshold
+        self.quietHours = quietHours
     }
 
     /// Pourcentage de réduction d'une amélioration lancée à `date` par ce poste.
