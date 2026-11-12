@@ -55,7 +55,7 @@ import Testing
         struct E { let id: Int; let cout: Int }
         let a = AdviceData(lists: ["pets": AdviceList(criterion: "x", sources: [], ids: [30, 10])])
         let r = a.sorted([E(id: 99, cout: 5), E(id: 10, cout: 900), E(id: 50, cout: 5), E(id: 30, cout: 800), E(id: 60, cout: 1)],
-                         in: "pets", id: \.id, cost: \.cout)
+                         in: .pets, id: \.id, cost: \.cout)
         #expect(r.map(\.id) == [30, 10, 60, 50, 99])
     }
 

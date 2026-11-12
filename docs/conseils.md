@@ -8,7 +8,10 @@ tiers (pas Supercell), pas des faits : quatre listes ordonnées d'identifiants (
 
 - `date` : jour de la dernière révision. L'app l'affiche.
 - `fallback` : la règle pour les éléments absents d'une liste. Ils passent après elle, du moins cher au plus
-  cher (coût du prochain niveau), puis par identifiant (`AdviceData.sorted`).
+  cher, puis par identifiant (`AdviceData.sorted`, `CostKey`). « Moins cher » : le coût du prochain niveau,
+  comparé ressource par ressource de la plus rare à la plus commune (minerai étoilé, lumineux, brillant, élixir
+  noir, élixir, or), sans taux de change ; un niveau sans coût vaut zéro ; sans prochain niveau, en dernier.
+  Un identifiant absent du village ou réservé à un HDV supérieur est ignoré : la liste peut viser plusieurs HDV.
 - Pour chaque liste : `criterion` (une phrase qui explique le classement), `sources` (adresses `https://`),
   `ids` (du plus prioritaire au moins prioritaire). Une liste n'a pas besoin d'être complète.
 

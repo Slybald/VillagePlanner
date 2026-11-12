@@ -2,7 +2,7 @@
   "format": 1,
   "date": "2026-11-12",
   "note": "Opinions de guides tiers, pas des faits. Voir docs/conseils.md pour la mise à jour.",
-  "fallback": "Les éléments absents d'une liste passent après elle, du moins cher au plus cher (coût total du prochain niveau), puis par identifiant.",
+  "fallback": "Les éléments absents d'une liste passent après elle, du moins cher au plus cher, puis par identifiant. Moins cher : le coût du prochain niveau, comparé ressource par ressource de la plus rare à la plus commune (minerai étoilé, minerai lumineux, minerai brillant, élixir noir, élixir, or), sans taux de change. Un niveau sans coût (niveau 1 débloqué par un bâtiment) vaut zéro ; un élément sans prochain niveau passe en dernier. Les identifiants absents du village ou réservés à un HDV supérieur sont ignorés.",
   "lists": {
     "defenses": {
       "criterion": "Les défenses qui arrêtent les armées entières (zone, tir à longue portée, noyau) avant les tourelles isolées ; Canons, Tours d'archers et Mortiers en dernier.",
