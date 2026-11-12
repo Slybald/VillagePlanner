@@ -72,6 +72,41 @@ public struct Profile: Sendable, Equatable, Codable {
         self.quietHours = quietHours
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case builderReduction, laboratoryReduction, orientation, heroLimit, pinned, nextTownHallThreshold, quietHours
+    }
+
+    /// Décodage tolérant : un champ absent ou illisible (profil d'une version plus ancienne, valeur inconnue) prend sa
+    /// valeur par défaut sans toucher aux autres réglages. Seul un contenu qui n'est pas un objet échoue.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let defaut = Profile()
+        builderReduction = (try? c.decodeIfPresent(Reduction.self, forKey: .builderReduction)) ?? nil
+        laboratoryReduction = (try? c.decodeIfPresent(Reduction.self, forKey: .laboratoryReduction)) ?? nil
+        orientation = (try? c.decodeIfPresent(Orientation.self, forKey: .orientation)) ?? defaut.orientation
+        heroLimit = (try? c.decodeIfPresent(Int.self, forKey: .heroLimit)) ?? nil
+        pinned = (try? c.decodeIfPresent(Set<Int>.self, forKey: .pinned)) ?? defaut.pinned
+        nextTownHallThreshold = (try? c.decodeIfPresent(TownHallThreshold.self, forKey: .nextTownHallThreshold))
+            ?? defaut.nextTownHallThreshold
+        // « null » veut dire « aucune heure sans jeu » ; une clé absente ou illisible, le défaut.
+        if c.contains(.quietHours), (try? c.decodeNil(forKey: .quietHours)) == true {
+            quietHours = nil
+        } else {
+            quietHours = (try? c.decodeIfPresent(QuietHours.self, forKey: .quietHours)) ?? defaut.quietHours
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(builderReduction, forKey: .builderReduction)
+        try c.encodeIfPresent(laboratoryReduction, forKey: .laboratoryReduction)
+        try c.encode(orientation, forKey: .orientation)
+        try c.encodeIfPresent(heroLimit, forKey: .heroLimit)
+        try c.encode(pinned, forKey: .pinned)
+        try c.encode(nextTownHallThreshold, forKey: .nextTownHallThreshold)
+        try c.encode(quietHours, forKey: .quietHours)   // nil écrit « null » : il se distingue d'une clé absente
+    }
+
     /// Pourcentage de réduction d'une amélioration lancée à `date` par ce poste.
     public func reductionPercent(for worker: WorkerKind, at date: Date) -> Int {
         switch worker {

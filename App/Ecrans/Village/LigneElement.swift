@@ -7,6 +7,9 @@ struct LigneElement: View {
     let element: Element
     let nom: String
     var complement: String? = nil
+    /// nil : pas de bouton ; sinon l'élément est-il épinglé, et ce que fait le bouton (T17).
+    var epingle: Bool? = nil
+    var basculerEpingle: () -> Void = {}
 
     @ScaledMetric(relativeTo: .body) private var image: CGFloat = 64
     @Environment(\.dynamicTypeSize) private var tailleTexte
@@ -19,9 +22,22 @@ struct LigneElement: View {
             Illustration(id: element.itemID, niveau: element.level, maximum: element.maxLevel, taille: min(image, 110))
             texte
         }
-        .padding(Theme.Espace.s)
-        .tuileChantier()
         .accessibilityElement(children: .combine)
+        .padding(Theme.Espace.s)
+        .overlay(alignment: .topTrailing) {
+            if let epingle {
+                Button(action: basculerEpingle) {
+                    Image(systemName: epingle ? "pin.fill" : "pin")
+                        .font(Theme.Police.texte)
+                        .foregroundStyle(epingle ? Theme.Couleur.elixirTexte : Theme.Couleur.texteDoux)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(epingle ? "Désépingler \(nom)" : "Épingler \(nom)")
+            }
+        }
+        .tuileChantier()
     }
 
     private var texte: some View {
@@ -41,6 +57,7 @@ struct LigneElement: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.trailing, epingle == nil ? 0 : 36)
     }
 
     private var niveau: String {

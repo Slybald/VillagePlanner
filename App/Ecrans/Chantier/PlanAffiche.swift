@@ -16,11 +16,10 @@ struct PlanAffiche {
     var maintenant: Date { plan.now }
 
     init(village: Village, export: VillageExport, reference: ReferenceData, conseils: AdviceData,
-         maintenant: Date, fuseau: TimeZone = .current) {
-        // Le profil n'est pas réglable avant T17 ; les heures sans jeu suivent le fuseau de l'appareil (le défaut du
-        // paquet est Paris, pour des tests reproductibles).
-        var profil = RestantAffiche.profilParDefaut
-        profil.quietHours = QuietHours(start: 23, end: 7, timeZone: fuseau)
+         profil reglages: Profile, maintenant: Date, fuseau: TimeZone = .current) {
+        // Les heures sans jeu suivent le fuseau de l'appareil (le défaut du paquet est Paris, pour des tests reproductibles).
+        var profil = reglages
+        profil.quietHours?.timeZone = fuseau
         // Sans `boosts`, la potion serait ignorée en silence ; sans `assistants`, les services aussi (S6).
         plan = makePlan(for: village, reference: reference, advice: conseils, profile: profil, now: maintenant,
                         boosts: export.boosts, assistants: Assistants(export: export, reference: reference))
