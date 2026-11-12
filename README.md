@@ -16,6 +16,9 @@ Il faut Xcode 26.6 ou plus récent (iOS 26 au minimum sur l'iPhone). Aucune dép
 # Tests de la logique, sans simulateur
 swift test --package-path Packages/ChantierKit
 
+# Tests de vitesse (50, 100, 200 ms), à part et sans parallélisme
+CHANTIER_VITESSE=1 swift test --package-path Packages/ChantierKit --filter Vitesse --no-parallel
+
 # Compilation de l'app pour le simulateur
 xcodebuild -project Chantier.xcodeproj -scheme Chantier -destination 'generic/platform=iOS Simulator' build
 ```

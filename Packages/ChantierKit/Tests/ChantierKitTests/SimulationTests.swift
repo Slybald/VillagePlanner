@@ -359,22 +359,6 @@ enum Sim {
                              now: e.date, boosts: e.boosts) == Réel.plan)
         }
     }
-
-    @Test func makePlanSurReelHdv16EnMoinsDe200msDeTempsProcesseur() {
-        _ = Réel.plan
-        func cpu() -> Double {
-            var t = timespec()
-            clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t)
-            return Double(t.tv_sec) * 1000 + Double(t.tv_nsec) / 1e6
-        }
-        let runs = (0..<5).map { _ -> Double in
-            let start = cpu()
-            _ = makePlan(for: Réel.village, reference: Réel.reference, advice: Réel.advice, profile: Profile(), now: Réel.export.date)
-            return cpu() - start
-        }.sorted()
-        print("makePlan reel-hdv16 : médiane \(runs[2]) ms de processeur, max \(runs[4]) ms sur 5 passages")
-        #expect(runs[2] < 200)
-    }
 }
 
 extension Réel {

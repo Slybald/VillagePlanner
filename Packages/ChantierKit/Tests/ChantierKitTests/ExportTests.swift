@@ -411,12 +411,3 @@ func medianeCPU(passages: Int = 11, _ corps: () throws -> Void) rethrows -> Doub
     }
     return durées.sorted()[passages / 2]
 }
-
-@Suite struct ExportVitesseTests {
-    @Test func lectureDeReelHdv16EnMoinsDe50ms() throws {
-        let texte = try Fixtures.texte("reel-hdv16")
-        let mediane = medianeCPU(passages: 21) { _ = try? VillageExport.parse(texte) }
-        print("lecture reel-hdv16 : médiane \(mediane) ms de temps processeur sur 21 passages")
-        #expect(mediane < 50)
-    }
-}
