@@ -10,19 +10,20 @@ Xcode > Réglages > Comptes > « + » > Identifiant Apple. Un compte gratuit suf
 
 ## 2. Écrire ton identifiant d'équipe dans le fichier de signature local
 
-Le dépôt ne contient aucun identifiant d'équipe. Il lit un fichier local, ignoré par git :
+Le dépôt ne contient aucun identifiant d'équipe : il lit un fichier local, ignoré par git. Pour connaître ton identifiant, choisis l'équipe une fois dans Xcode :
 
-```sh
-cp Config/Signature.exemple.xcconfig Config/Signature.local.xcconfig
-```
+1. Ouvre `Chantier.xcodeproj`, sélectionne la cible Chantier, onglet Signing & Capabilities, et choisis ton « Personal Team » dans Team.
+2. Relève l'identifiant d'équipe (dix caractères, lettres et chiffres) avec cette commande, qui lit `DEVELOPMENT_TEAM` dans le projet :
+   ```sh
+   grep -m1 DEVELOPMENT_TEAM Chantier.xcodeproj/project.pbxproj
+   ```
+3. Crée le fichier local et mets-y cet identifiant à la place de `ABCDE12345` :
+   ```sh
+   cp Config/Signature.exemple.xcconfig Config/Signature.local.xcconfig
+   ```
+4. Remets Team à « None » dans Signing & Capabilities : l'équipe est désormais lue dans `Signature.local.xcconfig`, et le projet ne garde aucun changement à commiter. N'utilise pas `git checkout` sur le projet si tu as d'autres changements en cours.
 
-Ouvre `Config/Signature.local.xcconfig` et remplace `ABCDE12345` par ton identifiant d'équipe (dix caractères). Pour le lire, une fois ton compte ajouté et une première compilation faite, dans le Terminal :
-
-```sh
-security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject
-```
-
-Il est dans le champ `OU=`. Ne commite jamais `Signature.local.xcconfig`.
+Ne commite jamais `Signature.local.xcconfig`.
 
 ## 3. Brancher l'iPhone
 

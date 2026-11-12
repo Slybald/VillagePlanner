@@ -34,39 +34,45 @@ final class ModeleApp {
     var onglet: OngletApp = .cap
 
     private let store: SnapshotStore
-    private let defaults = UserDefaults.standard
+    /// Les réglages de l'app (l'exemple est-il actif). En mode `-importer-fichier`, un jeu isolé : les vrais restent intacts.
+    private let reglages: UserDefaults
     /// `changeCount` du presse-papiers au dernier collage : tant qu'il ne bouge pas, on ne reproposera pas le même texte.
     private var presseTraite: Int?
     private static let cleExemple = "exempleActif"
 
     init() {
         reference = try? ReferenceData.load()
-        let defaults = UserDefaults.standard
+        let arguments = UserDefaults.standard      // arguments de lancement (-ecran, -exemple…)
+        var reglages = UserDefaults.standard
         var dossier = URL.applicationSupportDirectory.appending(path: "Photos")
         var fichiersDebug: [String] = []
         #if DEBUG
         // Débogage seulement : le fichier est importé dans un dossier neuf, sans trace entre deux lancements.
         // Plusieurs chemins séparés par « : » sont importés dans l'ordre (pour montrer un import refusé après un bon).
-        if let chemin = defaults.string(forKey: "importer-fichier") {
+        if let chemin = arguments.string(forKey: "importer-fichier") {
             dossier = FileManager.default.temporaryDirectory.appending(path: "chantier-import-debug")
             try? FileManager.default.removeItem(at: dossier)
             fichiersDebug = chemin.split(separator: ":").map(String.init)
+            let nom = "chantier-import-debug"
+            UserDefaults.standard.removePersistentDomain(forName: nom)
+            reglages = UserDefaults(suiteName: nom) ?? reglages
         }
         #endif
         store = SnapshotStore(directory: dossier)
+        self.reglages = reglages
 
         if !fichiersDebug.isEmpty {
             for chemin in fichiersDebug {
                 if let texte = try? String(contentsOfFile: chemin, encoding: .utf8) { importer(texte) }
             }
-        } else if defaults.bool(forKey: "exemple") {
+        } else if arguments.bool(forKey: "exemple") {
             chargerExemple(retenir: false)             // `-exemple 1` : pour les captures, rien n'est retenu
         } else if let derniere = store.latest() {
             affiche = calculer(derniere.export, photo: derniere.snapshot)
-        } else if defaults.bool(forKey: Self.cleExemple) {
+        } else if reglages.bool(forKey: Self.cleExemple) {
             chargerExemple(retenir: false)
         }
-        if let ecran = defaults.string(forKey: "ecran"), let demande = OngletApp(rawValue: ecran) { onglet = demande }
+        if let ecran = arguments.string(forKey: "ecran"), let demande = OngletApp(rawValue: ecran) { onglet = demande }
         rafraichirPressePapiers()
     }
 
@@ -78,7 +84,7 @@ final class ModeleApp {
             let resultat = try store.save(texte)
             guard let derniere = store.latest() else { throw .cannotWrite }
             affiche = calculer(derniere.export, photo: derniere.snapshot)
-            defaults.removeObject(forKey: Self.cleExemple)    // le premier vrai import efface l'exemple
+            reglages.removeObject(forKey: Self.cleExemple)    // le premier vrai import efface l'exemple
             onglet = .cap
             switch resultat {
             case .created(let photo) where photo != derniere.snapshot:
@@ -118,7 +124,7 @@ final class ModeleApp {
               let texte = try? String(contentsOf: url, encoding: .utf8),
               let export = try? VillageExport.parse(texte) else { return }
         affiche = calculer(export, photo: nil)
-        if retenir { defaults.set(true, forKey: Self.cleExemple) }
+        if retenir { reglages.set(true, forKey: Self.cleExemple) }
         onglet = .cap
     }
 

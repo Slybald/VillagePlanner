@@ -50,7 +50,10 @@ public struct SnapshotStore: Sendable {
         do { export = try VillageExport.parse(text) } catch { throw .invalid(error) }
         let snapshot = Snapshot(date: export.date)
         let url = directory.appending(path: snapshot.fileName)
-        if FileManager.default.fileExists(atPath: url.path) { return .alreadyStored(snapshot) }
+        // Un fichier de la même date n'est une photo que s'il se relit : un fichier abîmé est réécrit.
+        if let existant = try? String(contentsOf: url, encoding: .utf8), (try? VillageExport.parse(existant)) != nil {
+            return .alreadyStored(snapshot)
+        }
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try Data(text.utf8).write(to: url, options: .atomic)

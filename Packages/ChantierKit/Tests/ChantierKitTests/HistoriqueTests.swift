@@ -69,6 +69,17 @@ func exportMinimal(_ timestamp: Int, niveauHDV: Int = 1) -> String {
         #expect(store.latest()?.snapshot.date == Date(timeIntervalSince1970: 1_000))
     }
 
+    @Test func fichierAbimeDeLaMemeDateEstReecritParLExportValide() throws {
+        let dossier = DossierTemporaire(); defer { dossier.supprimer() }
+        let store = dossier.store
+        let photo = Snapshot(date: Date(timeIntervalSince1970: 1_794_414_482))
+        try FileManager.default.createDirectory(at: dossier.url, withIntermediateDirectories: true)
+        try Data("abîmé".utf8).write(to: dossier.url.appending(path: photo.fileName))
+        #expect(try store.save(exportMinimal(1_794_414_482)) == .created(photo))
+        #expect(store.text(of: photo) == exportMinimal(1_794_414_482))
+        #expect(store.latest()?.snapshot == photo)
+    }
+
     @Test func fichiersEtrangersDuDossierSontIgnores() throws {
         let dossier = DossierTemporaire(); defer { dossier.supprimer() }
         let store = dossier.store
