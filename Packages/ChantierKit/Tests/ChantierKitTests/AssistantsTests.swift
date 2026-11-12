@@ -24,7 +24,9 @@ enum Aide {
                       mergedFrom: [])
     }
     /// Comme les données : Apprenti et Assistant de labo n × 1 h ; Alchimiste 0 et 4.
-    static let helpers = [helper(apprentice, [(1, 3600), (2, 3600), (3, 3600)]),
+    /// Les niveaux 4 et 5 de l'Apprenti n'existent pas dans le jeu : ils servent à tester une durée de service lue dans
+    /// les données (1 800 s, × 2 ; 7 200 s, × 1).
+    static let helpers = [helper(apprentice, [(1, 3600), (2, 3600), (3, 3600), (2, 1800), (1, 7200)]),
                           helper(labAssistant, [(1, 3600), (2, 3600), (3, 3600)]),
                           helper(alchemist, [(0, 4), (0, 4), (0, 4)])]
 
@@ -71,6 +73,20 @@ enum Aide {
     }
 
     // MARK: - Les améliorations futures
+
+    @Test func S6_laDureeDeServiceVientDesDonneesParNiveau() {
+        // Canon de 100 h (360 000 s), Apprenti libre à la photo, pause de 82 800 s.
+        // Niveau 4 : × 2 sur 1 800 s : chaque service retire 3 600 s. Services à 0, 82 800, 165 600, 248 400, 331 200
+        // (restent 28 800 s > 1 800 × 3 : retire 3 600 s) : fin 360 000 − 5 × 3 600 = 342 000 ; le suivant, à 414 000, est après la fin.
+        let sections = ["buildings": [P.e(P.cannon, 1)]]
+        let court = A.plan([A.canon([100])], sections, Assistants(helpers: [A.app(4)]))
+        #expect(S.labels(court) == ["cannon2 0→342000"])
+        #expect(court.helperServices.map(\.savedSeconds) == [3600, 3600, 3600, 3600, 3600])
+        // Niveau 5 : × 1 sur 7 200 s : chaque service retire 7 200 s. Services à 0, 82 800, 165 600, 248 400 : fin 331 200.
+        let long = A.plan([A.canon([100])], sections, Assistants(helpers: [A.app(5)]))
+        #expect(S.labels(long) == ["cannon2 0→331200"])
+        #expect(long.helperServices.map(\.savedSeconds) == [7200, 7200, 7200, 7200])
+    }
 
     @Test func S6b_unApprentiNiveau2SurDeuxCanons_calculDeTete() {
         // Un ouvrier, un canon 1 → 2 → 3 (100 h puis 50 h), Apprenti niveau 2 (retire 2 h), libre à la photo.
@@ -169,6 +185,49 @@ enum Aide {
         let sans = A.plan([A.canon([100])], ["buildings": [P.e(P.cannon, 1, timer: 36_000)]],
                           Assistants(helpers: [A.app(2, cooldown: 80_000)]))
         #expect(S.labels(sans) == ["cannon2 0→36000"])
+    }
+
+    @Test func S6a_helperTimerEtRecurrentSansCooldown_laPauseCourtDepuisLeDebutDuService() {
+        // Canon en cours, minuteur 360 000 s, Apprenti niveau 2 (× 2), il lui reste 1 800 s de service, gardé affecté,
+        // pas de `helper_cooldown`. Service de la photo : retire 1 800 × 2 = 3 600 s → 356 400 s. Ce service a déjà
+        // duré 3 600 − 1 800 = 1 800 s : la pause de 82 800 s finit à 82 800 − 1 800 = 81 000 s. Services gardés :
+        //   81 000 : restent 275 400 → retire 7 200 → fin 349 200 ;  163 800 : restent 185 400 → 342 000 ;
+        //   246 600 : restent 95 400 → 334 800 ;  329 400 : restent 5 400 ≤ 10 800 → finit en (5 400 + 2) ÷ 3 = 1 800 s → 331 200.
+        // Une pause comptée depuis la photo (82 800) décalerait chaque service de 1 800 s.
+        let a = Assistants(helpers: [A.app(2)],
+                           assignments: [.init(helperID: A.apprentice, itemID: P.cannon, level: 1, ends: S.at(360_000),
+                                               recurrent: true, timer: 1800)])
+        let p = A.plan([A.canon([100])], ["buildings": [P.e(P.cannon, 1, timer: 360_000)]], a)
+        #expect(p.helperServices.map { S.offset($0.start) } == [0, 81_000, 163_800, 246_600, 329_400])
+        #expect(p.helperServices.map(\.savedSeconds) == [3600, 7200, 7200, 7200, 3600])
+        #expect(S.labels(p) == ["cannon2 0→331200"])
+    }
+
+    @Test func S6b_deuxFinsEgales_l_assistantPrendLeCouloirLePlusBas() {
+        // Deux minuteurs de la photo finissent ensemble (360 000 s). Triés par identifiant : le canon (couloir 0), puis
+        // l'Arc-X (couloir 1). L'Apprenti prend le couloir 0.
+        let items = [A.canon([100]), P.item(P.xbow, .defenses, [S.lv(10), S.lv(100 * A.h)])]
+        let sections = ["buildings": [P.e(P.cannon, 1, timer: 360_000), P.e(P.xbow, 1, timer: 360_000)]]
+        let p = A.plan(items, sections, huts: 2, Assistants(helpers: [A.app(2)]))
+        #expect(p.steps.map(\.lane) == [0, 1])
+        // Quatre services sur le canon (jusqu'à sa fin, 331 200 s) ; l'Arc-X n'est aidé qu'ensuite, à 331 200 s :
+        // restent 28 800 s, le service retire 7 200 s → 352 800 s.
+        #expect(p.helperServices.map(\.itemID) == [P.cannon, P.cannon, P.cannon, P.cannon, P.xbow])
+        #expect(S.labels(p) == ["cannon2 0→331200", "xbow2 0→352800"])
+    }
+
+    @Test func S6a_minuteurIllisible_aucunAssistantNeRaccourcitUneFinInventee() {
+        // Minuteur illisible : la fin tenue est la plus tardive (photo + 100 h). Ni `helper_*` de la photo ni S6b n'y touchent.
+        let sections = ["buildings": [ExportEntry(id: P.cannon, level: 1, extras: ["timer": .string("?"),
+                                                                                  "helper_recurrent": .bool(true)])]]
+        let a = Assistants(helpers: [A.app(2)],
+                           assignments: [.init(helperID: A.apprentice, itemID: P.cannon, level: 1, ends: nil, recurrent: true)])
+        let sans = A.plan([A.canon([100])], sections)
+        #expect(sans.unknownTimers == 1 && S.labels(sans) == ["cannon2 0→360000"])
+        let avec = A.plan([A.canon([100])], sections, a)
+        #expect(avec == sans && avec.helperServices.isEmpty)
+        // Idem sans affectation dans la photo : S6b ne l'aide pas non plus.
+        #expect(A.plan([A.canon([100])], sections, Assistants(helpers: [A.app(2)])) == sans)
     }
 
     @Test func S6a_helperRecurrent_l_assistantReprendSeulALaFinDeLaPause_memeLaNuit() {
@@ -278,6 +337,12 @@ enum Aide {
         let sans = makePlan(for: Réel.village, reference: Réel.reference, advice: Réel.advice, profile: Profile(),
                             now: Réel.export.date, boosts: Réel.export.boosts, assistants: Assistants())
         #expect(sans == Réel.plan)
+        // `Réel.plan` est calculé par le même code : on fige donc le plan de T13 (commit 0a9e933), pas à pas, par
+        // son nombre de pas, une empreinte (FNV-1a de chaque pas : type, niveau, exemplaire, couloir, début, fin)
+        // et le cap en secondes depuis 1970. Les dix premiers lancements sont déjà figés dans SimulationTests.
+        #expect(sans.steps.count == 354)
+        #expect(Réel.empreinte(sans) == 5_396_041_192_856_191_906)
+        #expect(sans.cap == Date(timeIntervalSince1970: 1_859_176_800))
         #expect(sans.cap == Réel.paris(2028, 11, 30, 7, 0, 0))
         #expect(sans.helperServices.isEmpty)
         // Un export dont on a retiré la section `helpers` et les champs `helper_*` donne le même plan.
@@ -346,6 +411,15 @@ enum Aide {
 }
 
 extension Réel {
+    static func empreinte(_ p: Plan) -> UInt64 {
+        var h: UInt64 = 14_695_981_039_346_656_037
+        func mix(_ x: Int) { h = (h ^ UInt64(bitPattern: Int64(x))) &* 1_099_511_628_211 }
+        for s in p.steps {
+            mix(s.step.itemID); mix(s.step.level); mix(s.copy); mix(s.lane)
+            mix(Int(s.start.timeIntervalSince1970)); mix(Int(s.end.timeIntervalSince1970)); mix(s.fromSnapshot ? 1 : 0)
+        }
+        return h
+    }
     static let planAvecAssistants = makePlan(for: village, reference: reference, advice: advice, profile: Profile(),
                                              now: export.date, boosts: export.boosts,
                                              assistants: Assistants(export: export, reference: reference))

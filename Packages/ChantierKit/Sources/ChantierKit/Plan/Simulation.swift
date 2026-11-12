@@ -169,6 +169,8 @@ struct Simulation {
     var crew: [HelperRuntime] = []
     var photoAssignments: [Assistants.Assignment] = []
     var helperServices: [HelperService] = []
+    /// Places (dans `scheduled`) des minuteurs illisibles : leur fin est inventée, un assistant ne la raccourcit pas.
+    var unknownSlots: Set<Int> = []
 
     init(village: Village, reference: ReferenceData, profile: Profile, assistants: Assistants = Assistants()) {
         self.reference = reference
@@ -213,6 +215,7 @@ struct Simulation {
                 if case .inProgress(let ends?) = step.status { end = ends } else {
                     end = photo.addingTimeInterval(TimeInterval(step.duration))      // minuteur illisible
                     unknownTimers += 1
+                    unknownSlots.insert(scheduled.count)                         // S6 n'y touche pas
                 }
                 launch(job, at: photo, end: end, costs: [], percent: 0)
                 if case .inProgress(let ends) = step.status { assistPhoto(step, ends: ends, running: running.count - 1) }
@@ -307,7 +310,7 @@ struct Simulation {
                 again = running.contains { $0.end <= t }
             }
             bindHelpers(at: t)                                                // S6
-            guard let next = (running.map(\.end) + helperWakes(after: t)).min() else { break }   // S7
+            guard let next = (crew.isEmpty ? running.map(\.end) : running.map(\.end) + helperWakes(after: t)).min() else { break }   // S7
             t = release(max(next, t))
         }
     }

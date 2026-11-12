@@ -3,11 +3,18 @@ import Foundation
 // Les assistants dans la simulation (PLAN §5.4, règle S6).
 //
 // L'Apprenti ouvrier aide un poste d'ouvriers, l'Assistant de labo le labo (pas la Maison des familiers) ; l'Alchimiste
-// ne change aucune date (multiplicateur 0 dans les données, et il n'est dans aucun poste). Un service dure une heure
-// (`helperSeconds`) et retire `helperMultiplier` heures de travail à l'amélioration aidée, ce que dit le jeu
-// (« le niveau 1 retire 1 heure, le niveau 2 en retire 2 »). Pendant le service l'amélioration avance donc
-// `1 + multiplicateur` fois plus vite ; si elle finit avant la fin du service, elle finit plus tôt encore (fonction
-// `helperRemaining`).
+// ne change aucune date (multiplicateur 0 dans les données, et il n'est dans aucun poste). Un service dure
+// `helperSeconds` (une heure dans les données) ; pendant ce temps l'amélioration avance de `helperMultiplier` fois
+// son rythme en plus (fonction `helperExtraSpeed`) ; si elle finit avant la fin du service, elle finit plus tôt
+// encore (fonction `helperRemaining`).
+//
+// HYPOTHÈSES NON CONFIRMÉES, à vérifier avec une photo avant/après (deux exports à quelques minutes d'écart autour
+// d'un service) ; aucune n'est dans une source du dépôt :
+//  H1  « le niveau n retire n heures par service » (portail d'aide du jeu, lu en ligne, pas dans le dépôt) ;
+//      isolée dans `helperExtraSpeed` ;
+//  H2  `timer` est donné « avant assistant » : `helper_timer` raccourcit donc le minuteur exporté (source : la
+//      recherche T02, pas vérifiée sur un compte) ;
+//  H3  la pause de 23 h est propre à chaque assistant ; le jeu partage une journée entre eux.
 //
 // Règles de ce fichier, reprises dans les noms de tests (AssistantsTests) :
 //  S6a  la photo : `helper_timer` (secondes de service restantes sur une amélioration) raccourcit son minuteur
@@ -22,11 +29,12 @@ import Foundation
 //  S6d  l'Alchimiste n'agit pas sur le temps ; un assistant absent de l'export n'aide personne ;
 //  S6e  sans assistant, le plan est celui de T13, à l'identique.
 // Décisions :
-//  - la pause de 23 h n'est pas dans la source (le jeu la dit sur le portail d'aide) : constante `helperWorkday`,
+//  - la pause de 23 h n'est pas dans la source (le jeu la dit sur le portail d'aide ; H3) : constante `helperWorkday`,
 //    comptée entre les débuts de deux services du même assistant ; le jeu partage une journée entre les assistants,
 //    ici chacun a la sienne (écart de quelques heures sur les dates des services, pas sur leur nombre) ;
 //  - un assistant sans affectation dans la photo ne sert pas avant la fin de `helper_cooldown` : l'export ne dit
 //    pas s'il a travaillé ce jour-là ;
+//  - un minuteur illisible (fin inconnue) : aucun assistant n'y touche, ni par la photo ni par S6b ;
 //  - le niveau d'un assistant reste celui de l'export (le plan ne monte pas les assistants : ils coûtent des gemmes).
 
 /// Pause entre le début de deux services d'un même assistant, en secondes (« journée de travail » de 23 h).
@@ -123,12 +131,18 @@ public struct Assistants: Sendable, Equatable {
     }
 }
 
+/// Hypothèse H1 : ce que le multiplicateur d'un niveau ajoute au rythme normal pendant un service (le jeu dit
+/// « le niveau n retire n heures » : n fois le rythme en plus). Le seul endroit à changer si la photo avant/après
+/// montre autre chose.
+func helperExtraSpeed(multiplier: Int) -> Int { multiplier }
+
 /// Temps restant d'une amélioration `remaining` secondes avant le début d'un service de `service` secondes : pendant
-/// le service elle avance `1 + multiplier` fois plus vite, et finit plus tôt encore si elle finit pendant le service.
+/// le service elle avance `1 + extra` fois plus vite, et finit plus tôt encore si elle finit pendant le service.
 func helperRemaining(_ remaining: Int, service: Int, multiplier: Int) -> Int {
-    guard multiplier > 0, service > 0, remaining > 0 else { return max(0, remaining) }
-    if remaining <= service * (1 + multiplier) { return (remaining + multiplier) / (1 + multiplier) }
-    return remaining - service * multiplier
+    let extra = helperExtraSpeed(multiplier: multiplier)
+    guard extra > 0, service > 0, remaining > 0 else { return max(0, remaining) }
+    if remaining <= service * (1 + extra) { return (remaining + extra) / (1 + extra) }
+    return remaining - service * extra
 }
 
 /// Un assistant pendant la simulation : son poste, ce que ses données disent de son niveau, et quand il peut
@@ -179,6 +193,7 @@ extension Simulation {
 
     /// S6a : l'affectation lue dans la photo pour le pas `step` (minuteur `ends`), lancé comme `running[i]`.
     mutating func assistPhoto(_ step: UpgradeStep, ends: Date?, running i: Int) {
+        guard ends != nil else { return }                                     // fin inconnue : rien à raccourcir
         guard let k = photoAssignments.firstIndex(where: {
             $0.itemID == step.itemID && $0.level + 1 == step.level && $0.ends == ends
         }) else { return }
@@ -198,7 +213,9 @@ extension Simulation {
     /// cours la plus longue de son poste, à égalité le couloir le plus bas.
     mutating func bindHelpers(at t: Date) {
         for h in crew.indices where crew[h].availableAt <= t {
-            let candidates = running.indices.filter { running[$0].job.step.worker == crew[h].post }
+            let candidates = running.indices.filter {
+                running[$0].job.step.worker == crew[h].post && !unknownSlots.contains(running[$0].slot)
+            }
             guard let i = candidates.max(by: { a, b in
                 running[a].end != running[b].end ? running[a].end < running[b].end : running[a].lane > running[b].lane
             }) else { continue }
