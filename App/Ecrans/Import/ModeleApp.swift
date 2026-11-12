@@ -9,6 +9,8 @@ struct VillageAffiche {
     let rapport: ProgressReport
     /// nil pour le village d'exemple, qui n'est jamais enregistré.
     let photo: Snapshot?
+    /// nil quand l'HDV est inconnu (V7) : il n'y a pas de plan.
+    var plan: PlanAffiche? = nil
     var estExemple: Bool { photo == nil }
 }
 
@@ -36,6 +38,10 @@ final class ModeleApp {
     private var montees: [Int: [Int: Int]] = [:]
     /// Les montées déjà jouées, une fois par endroit.
     @ObservationIgnored private var monteesJouees: Set<String> = []
+
+    /// Ce qu'il faut pour recalculer le plan quand l'heure a changé.
+    private var exportCourant: VillageExport?
+    private let conseils = (try? AdviceData.load()) ?? AdviceData()
 
     private let store: SnapshotStore
     /// Les réglages de l'app (l'exemple est-il actif). En mode `-importer-fichier`, un jeu isolé : les vrais restent intacts.
@@ -139,8 +145,24 @@ final class ModeleApp {
 
     private func calculer(_ export: VillageExport, photo: Snapshot?) -> VillageAffiche? {
         guard let reference else { return nil }
+        exportCourant = export
         let village = Village(export: export, reference: reference)
-        return VillageAffiche(village: village, rapport: progress(of: village, reference: reference), photo: photo)
+        return VillageAffiche(village: village, rapport: progress(of: village, reference: reference), photo: photo,
+                              plan: plan(village: village, export: export, reference: reference, estExemple: photo == nil))
+    }
+
+    private func plan(village: Village, export: VillageExport, reference: ReferenceData, estExemple: Bool) -> PlanAffiche? {
+        guard village.status != .unknownTownHall else { return nil }
+        return PlanAffiche(village: village, export: export, reference: reference, conseils: conseils,
+                           maintenant: PlanAffiche.horloge(village: village, estExemple: estExemple))
+    }
+
+    /// Au retour au premier plan : les postes libérés, les échéances et la consigne suivent l'heure.
+    func rafraichirPlan() {
+        guard let affiche, let reference, let exportCourant else { return }
+        self.affiche = VillageAffiche(village: affiche.village, rapport: affiche.rapport, photo: affiche.photo,
+                                      plan: plan(village: affiche.village, export: exportCourant, reference: reference,
+                                                 estExemple: affiche.estExemple))
     }
 
     // MARK: Presse-papiers

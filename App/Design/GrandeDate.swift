@@ -19,10 +19,10 @@ struct GrandeDate: View {
                 .font(Theme.Police.surtitre)
                 .foregroundStyle(Theme.Couleur.texteDoux)
             Text(date)
-                // Plafond : au-delà, « le 14 mars » se coupe en trois lignes.
+                // Plafond de taille ; une seule ligne, réduite si besoin : « le 10 novembre » ne se coupe jamais en deux.
                 .font(Theme.Police.date(min(taille, 92)))
-                .lineLimit(2)
-                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
                 .contentTransition(.numericText())
                 .padding(.bottom, Theme.Espace.xs)
             if let mouvement {

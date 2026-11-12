@@ -139,11 +139,11 @@ extension Lisible {
         let e = ecart(date, now: now, timeZone: timeZone)
         let heure = heure(date, timeZone: timeZone)
         switch e {
-        case ..<0: return "le " + jour(date, now: now, timeZone: timeZone) + " à " + heure
-        case 0: return "aujourd'hui " + heure
-        case 1: return "demain " + heure
-        case 2...6: return jours[calendrier(timeZone).component(.weekday, from: date) - 1] + " " + heure
-        default: return "le " + jour(date, now: now, timeZone: timeZone) + " à " + heure
+        case ..<0: return "le\u{00A0}" + jour(date, now: now, timeZone: timeZone) + " à\u{00A0}" + heure
+        case 0: return "aujourd'hui\u{00A0}" + heure
+        case 1: return "demain\u{00A0}" + heure
+        case 2...6: return jours[calendrier(timeZone).component(.weekday, from: date) - 1] + "\u{00A0}" + heure
+        default: return "le\u{00A0}" + jour(date, now: now, timeZone: timeZone) + " à\u{00A0}" + heure
         }
     }
 
@@ -154,9 +154,9 @@ extension Lisible {
         let heure = heure(date, timeZone: timeZone)
         switch e {
         case 0...: return heure
-        case -1: return "hier " + heure
-        case -6 ... -2: return jours[calendrier(timeZone).component(.weekday, from: date) - 1] + " " + heure
-        default: return "le " + jour(date, now: now, timeZone: timeZone)
+        case -1: return "hier\u{00A0}" + heure
+        case -6 ... -2: return jours[calendrier(timeZone).component(.weekday, from: date) - 1] + "\u{00A0}" + heure
+        default: return "le\u{00A0}" + jour(date, now: now, timeZone: timeZone)
         }
     }
 }

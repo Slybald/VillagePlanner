@@ -14,7 +14,7 @@ struct ChantierApp: App {
                 .environment(modele)
                 // L'app est en français seulement : formats de dates et de pourcentages compris.
                 .environment(\.locale, Locale(identifier: "fr_FR"))
-                .onChange(of: phase) { if phase == .active { modele.rafraichirPressePapiers() } }
+                .onChange(of: phase) { if phase == .active { modele.rafraichirPressePapiers(); modele.rafraichirPlan() } }
         }
     }
 }
@@ -36,8 +36,7 @@ struct RacineView: View {
                     EcranCap(affiche: affiche, reference: reference)
                 }
                 Tab("Chantier", systemImage: "hammer", value: OngletApp.chantier) {
-                    PageProvisoire(titre: "Le planning arrive", message: "Les couloirs des ouvriers viendront au jalon 2.",
-                                   symbole: "calendar", estExemple: affiche.estExemple, illustration: 1000015)
+                    EcranChantier(affiche: affiche, reference: reference)
                 }
                 Tab("Village", systemImage: "house", value: OngletApp.village) {
                     EcranVillage(affiche: affiche, reference: reference)
