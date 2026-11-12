@@ -8,6 +8,7 @@ struct EcranCap: View {
     let reference: ReferenceData
     @Environment(ModeleApp.self) private var modele
     @Environment(\.dynamicTypeSize) private var tailleTexte
+    @Environment(\.accessibilityReduceMotion) private var reduire
 
     private var village: Village { affiche.village }
 
@@ -32,13 +33,13 @@ struct EcranCap: View {
                     .padding(.vertical, Theme.Espace.l)
                 }
             }
-            .pageCarnet()
+            .pageChantier()
             .toolbar {
                 if let photo = affiche.photo {
                     ToolbarItem(placement: .topBarLeading) {
                         Text(photo.ageDescription(now: Date()))
                             .font(Theme.Police.detail)
-                            .foregroundStyle(Theme.Couleur.encreDouce)
+                            .foregroundStyle(Theme.Couleur.texteDoux)
                             .fixedSize()
                     }
                     .sharedBackgroundVisibility(.hidden)
@@ -87,30 +88,37 @@ struct EcranCap: View {
 
     private func avancement(_ total: Double) -> some View {
         VStack(alignment: .leading, spacing: Theme.Espace.l) {
+            Terrain(hdv: village.townHall)
             GrandeDate(surtitre: "HDV \(village.townHall)",
                        date: "\(Int((total * 100).rounded()))\u{202F}%",
                        mouvement: "d'avancement total")
             Jauge(valeur: total)
         }
+        .animation(reduire ? nil : .snappy, value: total)
+    }
+
+    private var colonnes: [GridItem] {
+        // Deux colonnes, une seule aux tailles d'accessibilité.
+        Array(repeating: GridItem(.flexible(), spacing: Theme.Espace.m, alignment: .top),
+              count: tailleTexte.isAccessibilitySize ? 1 : 2)
     }
 
     private var categories: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Catégories").etiquetteCarnet()
-            // Deux colonnes, une seule aux tailles d'accessibilité.
-            let colonnes = Array(repeating: GridItem(.flexible(), spacing: Theme.Espace.l, alignment: .leading),
-                                 count: tailleTexte.isAccessibilitySize ? 1 : 2)
+            Text("Catégories").etiquetteChantier()
             LazyVGrid(columns: colonnes, alignment: .leading, spacing: Theme.Espace.m) {
                 ForEach(ChantierKit.Category.ordreAffichage, id: \.self) { categorie in
+                    let niveau = village.niveau(de: categorie.representant)
                     if let progression = affiche.rapport.categories[categorie], progression.hasWork {
-                        LigneCategorie(nom: categorie.nom, valeur: progression.fraction)
+                        TuileCategorie(categorie: categorie, niveau: niveau, valeur: progression.fraction)
                     } else {
                         // A4 : rien à faire à cet HDV, la catégorie sort de la moyenne.
-                        LigneTexte(nom: categorie.nom, valeur: "rien à faire")
+                        TuileCategorie(categorie: categorie, niveau: niveau, texte: "rien à faire")
                     }
                 }
             }
         }
+        .animation(reduire ? nil : .snappy, value: affiche.rapport.total)
     }
 
     // MARK: HDV inconnu
@@ -118,16 +126,20 @@ struct EcranCap: View {
     /// Ce que contient la photo, sans aucun pourcentage (V7).
     private var inventaire: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.xl) {
+            Terrain(hdv: min(max(village.townHall, 0), reference.maxTownHall))
             GrandeDate(surtitre: "Inventaire de la photo",
                        date: village.townHall >= 1 ? "HDV \(village.townHall)" : "HDV ?",
                        mouvement: "Pas de pourcentage pour cet HDV.")
             VStack(alignment: .leading, spacing: Theme.Espace.m) {
-                Text("Catégories").etiquetteCarnet()
-                ForEach(ChantierKit.Category.ordreAffichage, id: \.self) { categorie in
-                    let n = village.elements
-                        .filter { reference.item($0.itemID)?.category == categorie }
-                        .reduce(0) { $0 + $1.count }
-                    LigneTexte(nom: categorie.nom, valeur: "\(n) élément\(n > 1 ? "s" : "")")
+                Text("Catégories").etiquetteChantier()
+                LazyVGrid(columns: colonnes, alignment: .leading, spacing: Theme.Espace.m) {
+                    ForEach(ChantierKit.Category.ordreAffichage, id: \.self) { categorie in
+                        let n = village.elements
+                            .filter { reference.item($0.itemID)?.category == categorie }
+                            .reduce(0) { $0 + $1.count }
+                        TuileCategorie(categorie: categorie, niveau: village.niveau(de: categorie.representant),
+                                       texte: "\(n) élément\(n > 1 ? "s" : "")")
+                    }
                 }
             }
         }

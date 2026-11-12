@@ -26,6 +26,10 @@ Pour installer sur un iPhone, copie `Config/Signature.exemple.xcconfig` en `Conf
 
 Les données de référence du jeu (coûts, durées, niveaux maximums) sont tirées de [ClashKingInc/ClashKingAssets](https://github.com/ClashKingInc/ClashKingAssets) (GPL-3.0), contrôlées avec [chiefpansancolt/clash-of-clans-data](https://github.com/chiefpansancolt/clash-of-clans-data) (MIT). Le fichier embarqué `reference.json` est produit par `outils maj-reference` (procédure : [docs/mise-a-jour-du-jeu.md](docs/mise-a-jour-du-jeu.md)). L'app ne touche pas au jeu : elle lit seulement l'export que tu copies toi-même.
 
+Les illustrations des bâtiments, pièges, unités, héros, familiers et équipements, et les deux décors de l'écran Cap, sont des images du jeu (propriété de Supercell, montrées sans modification) servies par [ClashKingAssets](https://github.com/ClashKingInc/ClashKingAssets) (assets.clashk.ing), qui demande ce crédit. Elles sont dans `App/Ressources/Illustrations/`, produites par `swift run --package-path Packages/ChantierKit outils maj-images` (seulement les éléments qui comptent dans l'avancement ; rapport des éléments sans image dans `Packages/ChantierKit/.cache/maj-images/rapport.md`).
+
+Polices : [Lilita One](https://fonts.google.com/specimen/Lilita+One) et [Fredoka](https://fonts.google.com/specimen/Fredoka), licence SIL Open Font License 1.1 (textes dans `App/Ressources/Polices/`).
+
 ## Mention
 
 This material is unofficial and is not endorsed by Supercell. For more information see Supercell's Fan Content Policy: www.supercell.com/fan-content-policy.

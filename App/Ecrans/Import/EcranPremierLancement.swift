@@ -1,9 +1,12 @@
+import ChantierKit
 import SwiftUI
 
 /// Le seul écran quand l'app n'a aucune photo : le chemin dans le jeu, le bouton de collage, l'exemple.
 /// Aucune autorisation demandée : le bouton système de collage lit sans alerte.
 struct EcranPremierLancement: View {
     @Environment(ModeleApp.self) private var modele
+    @ScaledMetric(relativeTo: .largeTitle) private var titre: CGFloat = 52
+    @ScaledMetric(relativeTo: .body) private var pastille: CGFloat = 30
 
     private let etapes = [
         "Dans Clash of Clans, ouvre ton profil, puis Réglages.",
@@ -15,23 +18,29 @@ struct EcranPremierLancement: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Espace.xl) {
                 VStack(alignment: .leading, spacing: Theme.Espace.m) {
+                    // Le terrain vide, l'hôtel de ville le plus haut en fantôme : il attend ton village.
+                    Terrain(hdv: 0, fantome: modele.reference?.maxTownHall ?? 1)
+                        .padding(.bottom, Theme.Espace.s)
                     Text("Chantier")
-                        .font(Theme.Police.date(52))
+                        .font(Theme.Police.date(titre))
                     Text("Copie l'export de ton village dans le jeu, puis reviens ici.")
                         .font(Theme.Police.surtitre)
-                        .foregroundStyle(Theme.Couleur.encreDouce)
+                        .foregroundStyle(Theme.Couleur.texteDoux)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
 
                 VStack(alignment: .leading, spacing: Theme.Espace.m) {
-                    Text("Dans le jeu").etiquetteCarnet()
+                    Text("Dans le jeu").etiquetteChantier()
                     ForEach(Array(etapes.enumerated()), id: \.offset) { numero, texte in
-                        HStack(alignment: .firstTextBaseline, spacing: Theme.Espace.m) {
+                        HStack(alignment: .center, spacing: Theme.Espace.m) {
                             Text("\(numero + 1)")
-                                .font(Theme.Police.chiffreGrand)
-                                .frame(minWidth: 24, alignment: .leading)
+                                .font(Theme.Police.chiffre)
+                                .foregroundStyle(Theme.Couleur.surOr)
+                                .frame(minWidth: pastille, minHeight: pastille)
+                                .background(Theme.Couleur.or, in: .circle)
+                                .overlay(Circle().strokeBorder(Theme.Couleur.contour, lineWidth: Theme.bord))
                                 .accessibilityHidden(true)
                             Text(texte).font(Theme.Police.texte)
                         }
@@ -46,9 +55,10 @@ struct EcranPremierLancement: View {
                     BoutonColler()
                     Text("Le bouton s'allume quand un texte est copié.")
                         .font(Theme.Police.detail)
-                        .foregroundStyle(Theme.Couleur.encreDouce)
+                        .foregroundStyle(Theme.Couleur.texteDoux)
                     Button("Voir un exemple") { modele.chargerExemple() }
                         .font(Theme.Police.texte)
+                        .foregroundStyle(Theme.Couleur.elixirTexte)
                         .underline()
                         .padding(.top, Theme.Espace.s)
                 }
@@ -56,7 +66,7 @@ struct EcranPremierLancement: View {
             .padding(.horizontal, Theme.Espace.marge)
             .padding(.vertical, Theme.Espace.xl)
         }
-        .pageCarnet()
+        .pageChantier()
     }
 }
 

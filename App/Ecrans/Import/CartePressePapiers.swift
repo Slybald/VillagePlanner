@@ -11,8 +11,9 @@ struct BoutonColler: View {
             Task { @MainActor in modele.importer(texte) }
         }
         .labelStyle(.titleAndIcon)
-        .buttonBorderShape(.roundedRectangle(radius: Theme.rayon))
-        .tint(Theme.Couleur.accent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
+        .tint(Theme.Couleur.action)
     }
 }
 
@@ -29,17 +30,14 @@ struct CartePressePapiers: View {
                 Text("Un texte est dans le presse-papiers").font(Theme.Police.texte.weight(.semibold))
                 Text("Si c'est l'export de ton village, colle-le : l'app l'enregistre comme une nouvelle photo.")
                     .font(Theme.Police.detail)
-                    .foregroundStyle(Theme.Couleur.encreDouce)
+                    .foregroundStyle(Theme.Couleur.texteDoux)
                     .fixedSize(horizontal: false, vertical: true)
                 BoutonColler()
             }
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.Couleur.surface, in: .rect(cornerRadius: Theme.rayon))
-        .overlay(alignment: .leading) {
-            Rectangle().fill(Theme.Couleur.encre).frame(width: 3).accessibilityHidden(true)
-        }
+        .tuileChantier()
     }
 }
 
@@ -51,13 +49,13 @@ struct CarteRetour: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.Espace.m) {
             Image(systemName: retour.estErreur ? "exclamationmark.triangle.fill" : "info.circle")
-                .foregroundStyle(retour.estErreur ? Theme.Couleur.accent : Theme.Couleur.encreDouce)
+                .foregroundStyle(retour.estErreur ? Theme.Couleur.action : Theme.Couleur.texteDoux)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Theme.Espace.xs) {
                 Text(retour.titre).font(Theme.Police.texte.weight(.semibold))
                 Text(retour.detail)
                     .font(Theme.Police.detail)
-                    .foregroundStyle(Theme.Couleur.encreDouce)
+                    .foregroundStyle(Theme.Couleur.texteDoux)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Fermer") { modele.fermerRetour() }
                     .font(Theme.Police.detail)

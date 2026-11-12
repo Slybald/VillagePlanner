@@ -24,23 +24,21 @@ struct EcranCategorie: View {
                 if affiche.estExemple { MarqueExemple() }
                 VStack(alignment: .leading, spacing: Theme.Espace.l) {
                     if let progression = affiche.rapport.categories[categorie], progression.hasWork {
-                        LigneCategorie(nom: categorie.nom, valeur: progression.fraction, avecJauge: true)
-                        if let reste = restant.resume(categorie) { Text(reste).font(Theme.Police.chiffreDetail).foregroundStyle(Theme.Couleur.encreDouce) }
+                        LigneCategorie(nom: categorie.nom, valeur: progression.fraction, avecJauge: true, couleur: categorie.couleur)
+                        if let reste = restant.resume(categorie) { Text(reste).font(Theme.Police.chiffreDetail).foregroundStyle(Theme.Couleur.texteDoux) }
                     }
                     if let mention = restant.mentionReduction {
-                        Text(mention).font(Theme.Police.detail).foregroundStyle(Theme.Couleur.encreDouce)
+                        Text(mention).font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux)
                     }
                     if tous.isEmpty {
                         Text("Rien dans cette catégorie à ton HDV.")
-                            .font(Theme.Police.texte).foregroundStyle(Theme.Couleur.encreDouce)
+                            .font(Theme.Police.texte).foregroundStyle(Theme.Couleur.texteDoux)
                     }
                     if !restants.isEmpty {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text("Reste à faire").etiquetteCarnet().padding(.bottom, Theme.Espace.xs)
-                            Filet()
+                        VStack(alignment: .leading, spacing: Theme.Espace.s) {
+                            Text("Reste à faire").etiquetteChantier()
                             ForEach(Array(restants.enumerated()), id: \.offset) { _, e in
                                 LigneElement(element: e.element, nom: e.fiche.name, complement: restant.complement(e.element))
-                                Filet()
                             }
                         }
                     }
@@ -54,7 +52,7 @@ struct EcranCategorie: View {
         .task { if terminesOuverts { proxy.scrollTo("termines", anchor: .top) } }   // captures
         #endif
         }
-        .pageCarnet()
+        .pageChantier()
         .navigationTitle(categorie.nom)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -63,17 +61,17 @@ struct EcranCategorie: View {
     private func repliees(_ termines: [ElementAffiche]) -> some View {
         let n = termines.reduce(0) { $0 + $1.element.count }
         return DisclosureGroup(isExpanded: $terminesOuverts) {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: Theme.Espace.s) {
                 ForEach(Array(termines.enumerated()), id: \.offset) { _, e in
-                    Filet()
                     LigneElement(element: e.element, nom: e.fiche.name)
                 }
             }
+            .padding(.top, Theme.Espace.s)
         } label: {
             Text("\(n) terminé\(n > 1 ? "s" : "")")
                 .font(Theme.Police.texte)
                 .padding(.vertical, Theme.Espace.s)
         }
-        .tint(Theme.Couleur.encreDouce)
+        .tint(Theme.Couleur.elixirTexte)
     }
 }

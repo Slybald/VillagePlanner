@@ -1,46 +1,29 @@
 import SwiftUI
 
-/// Une catégorie et son avancement, reliés par des points de conduite comme une table des matières.
+/// Une catégorie et son avancement.
 struct LigneCategorie: View {
     let nom: String
     /// Entre 0 et 1.
     let valeur: Double
     /// Une jauge fine sous la ligne (écran Village) ; sans, sur le Cap.
     var avecJauge = false
+    var couleur: Color = Theme.Couleur.or
 
     var body: some View {
         VStack(spacing: Theme.Espace.xs) {
             HStack(alignment: .lastTextBaseline, spacing: Theme.Espace.xs) {
                 Text(nom).font(Theme.Police.texte).layoutPriority(1)
-                PointsDeConduite()
+                Spacer(minLength: Theme.Espace.m)
                 Text(valeur, format: .percent.precision(.fractionLength(0)))
                     .font(Theme.Police.chiffre)
                     .fixedSize()
-                    .foregroundStyle(valeur >= 1 ? Theme.Couleur.encreDouce : Theme.Couleur.encre)
+                    .foregroundStyle(valeur >= 1 ? Theme.Couleur.herbe : Theme.Couleur.texte)
             }
             if avecJauge {
-                Jauge(valeur: valeur, taille: .fine).accessibilityHidden(true)
+                Jauge(valeur: valeur, taille: .fine, couleur: couleur).accessibilityHidden(true)
             }
         }
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// Pointillés qui mènent l'œil du nom au chiffre.
-private struct PointsDeConduite: View {
-    var body: some View {
-        Line()
-            .stroke(Theme.Couleur.trait, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0.1, 4]))
-            .frame(height: 1.5)
-            .frame(minWidth: Theme.Espace.m)
-            .alignmentGuide(.lastTextBaseline) { $0[.bottom] }
-            .accessibilityHidden(true)
-    }
-
-    nonisolated private struct Line: Shape {
-        func path(in rect: CGRect) -> Path {
-            Path { $0.move(to: CGPoint(x: 0, y: rect.midY)); $0.addLine(to: CGPoint(x: rect.maxX, y: rect.midY)) }
-        }
     }
 }
 
@@ -51,5 +34,5 @@ private struct PointsDeConduite: View {
         LigneCategorie(nom: "Pièges", valeur: 1)
     }
     .padding(Theme.Espace.marge)
-    .pageCarnet()
+    .pageChantier()
 }

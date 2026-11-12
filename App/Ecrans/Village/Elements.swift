@@ -42,3 +42,8 @@ extension Elements {
         return resultat
     }
 }
+
+extension Village {
+    /// Le plus haut niveau d'un type dans le village (0 : absent ou pas encore construit).
+    func niveau(de id: Int) -> Int { elements.filter { $0.itemID == id }.map(\.level).max() ?? 0 }
+}

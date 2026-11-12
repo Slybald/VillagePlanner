@@ -17,10 +17,10 @@ struct MarqueExemple: View {
     }
 
     @ViewBuilder private var contenu: some View {
-        Text("Exemple").etiquetteCarnet().foregroundStyle(Theme.Couleur.encre).fixedSize()
+        Text("Exemple").etiquetteChantier().foregroundStyle(Theme.Couleur.texte).fixedSize()
         Text("village inventé, pas le tien")
             .font(Theme.Police.detail)
-            .foregroundStyle(Theme.Couleur.encreDouce)
+            .foregroundStyle(Theme.Couleur.texteDoux)
     }
 }
 
@@ -30,13 +30,14 @@ struct PageProvisoire: View {
     let message: String
     let symbole: String
     let estExemple: Bool
+    var illustration: Int? = nil
 
     var body: some View {
         VStack(spacing: 0) {
             if estExemple { MarqueExemple() }
-            EtatVide(titre: titre, message: message, symbole: symbole)
+            EtatVide(titre: titre, message: message, symbole: symbole, illustration: illustration)
         }
-        .pageCarnet()
+        .pageChantier()
     }
 }
 
@@ -51,7 +52,7 @@ struct LigneTexte: View {
             Spacer(minLength: Theme.Espace.m)
             Text(valeur)
                 .font(Theme.Police.chiffre)
-                .foregroundStyle(Theme.Couleur.encreDouce)
+                .foregroundStyle(Theme.Couleur.texteDoux)
                 .multilineTextAlignment(.trailing)
         }
         .accessibilityElement(children: .combine)
