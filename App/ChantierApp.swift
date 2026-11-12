@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct ChantierApp: App {
     @State private var modele = ModeleApp()
+    @State private var conseil = ModeleConseil()
     @Environment(\.scenePhase) private var phase
 
     init() { Theme.Police.enregistrer() }
@@ -12,6 +13,7 @@ struct ChantierApp: App {
         WindowGroup {
             RacineView()
                 .environment(modele)
+                .environment(conseil)
                 // L'app est en français seulement : formats de dates et de pourcentages compris.
                 .environment(\.locale, Locale(identifier: "fr_FR"))
                 .onChange(of: phase) { if phase == .active { modele.rafraichirPressePapiers(); modele.rafraichirPlan() } }
@@ -50,5 +52,5 @@ struct RacineView: View {
 }
 
 #Preview {
-    RacineView().environment(ModeleApp())
+    RacineView().environment(ModeleApp()).environment(ModeleConseil())
 }

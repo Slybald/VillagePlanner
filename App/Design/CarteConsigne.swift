@@ -3,6 +3,8 @@ import SwiftUI
 /// La consigne du chef de chantier : une phrase, et de quoi en demander une autre.
 struct CarteConsigne: View {
     let texte: String
+    /// Le texte vient du conseiller (et a passé les garde-fous) : l'app le dit, discrètement.
+    var reformulee = false
     var titreAction = "Demander"
     var action: (() -> Void)? = nil
 
@@ -12,6 +14,12 @@ struct CarteConsigne: View {
             Text(texte)
                 .font(Theme.Police.consigne)
                 .fixedSize(horizontal: false, vertical: true)
+            if reformulee {
+                Text("Reformulée par le conseiller, chiffres calculés par l'app")
+                    .font(Theme.Police.detail)
+                    .foregroundStyle(Theme.Couleur.texteDoux)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let action {
                 Button(action: action) {
                     Label(titreAction, systemImage: "chevron.right")
