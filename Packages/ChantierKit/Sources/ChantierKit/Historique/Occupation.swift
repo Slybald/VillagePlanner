@@ -202,14 +202,22 @@ private struct Estimate {
         }
     }
 
-    /// Les paires (minuteur de A, minuteur de B) qui sont la même amélioration : même type, même niveau visé, les
-    /// fins les plus proches d'abord (une amélioration qui continue garde sa fin d'une photo à l'autre).
+    /// Les paires (minuteur de A, minuteur de B) qui sont la même amélioration : même type, même niveau visé, la fin de
+    /// A après la date de B (sinon il est fini : un autre exemplaire du même type a pu prendre sa suite), et des fins qui
+    /// ne diffèrent que de quelques secondes, plus ce qu'une potion ou un assistant a pu raccourcir d'une photo à
+    /// l'autre. Les fins les plus proches d'abord. Une fin inconnue (minuteur illisible) s'apparie sans condition.
     private func matches(_ a: [Minuteur], _ b: [Minuteur]) -> [(Int, Int)] {
+        let (helperA, helperB) = (helperPerService(x), helperPerService(y))
+        let potions = potion(in: x) || potion(in: y)
         var pairs: [(Int, Int, Double)] = []
         for i in a.indices {
             for j in b.indices where a[i].itemID == b[j].itemID && a[i].target == b[j].target {
-                let gap = a[i].end.flatMap { e in b[j].end.map { abs(e.timeIntervalSince($0)) } } ?? 0
-                pairs.append((i, j, gap))
+                guard let ea = a[i].end, let eb = b[j].end else { pairs.append((i, j, 0)); continue }
+                let d = duration(a[i].itemID, level: a[i].target) ?? 0
+                let allowance = TimeInterval(max(helperA, helperB) > 0 ? min(d, (d / helperWorkday + 1) * max(helperA, helperB)) : 0)
+                    + (potions ? TimeInterval(min(d, Self.potionSaving)) : 0)
+                let gap = abs(ea.timeIntervalSince(eb))
+                if ea.addingTimeInterval(allowance) > y.date, gap <= 5 + allowance { pairs.append((i, j, gap)) }
             }
         }
         var usedA = Set<Int>(), usedB = Set<Int>(), out: [(Int, Int)] = []

@@ -13,13 +13,13 @@ enum Occ {
     static func h(_ heures: Int) -> Date { t0.addingTimeInterval(TimeInterval(heures * 3600)) }
     static func hours(_ n: Int) -> Int { n * 3600 }
 
-    static func reference(huts: Int = 1) -> ReferenceData {
+    static func reference(huts: Int = 1, canons: Int = 1) -> ReferenceData {
         ReferenceData(items: [
             Rest.item(th, "buildings", .economy, .builder, counts: [0, 1, 1, 1], max: [0, 1, 2, 3],
                       levels: [(0, 0, []), (0, 0, []), (0, 0, [])]),
             Rest.item(hut, "buildings", .economy, .builder, counts: [0, huts, huts, huts], max: [0, 1, 1, 1],
                       levels: [(0, 0, [])]),
-            Rest.item(cannon, "buildings", .defenses, .builder, counts: [0, 1, 1, 1], max: [0, 4, 4, 4],
+            Rest.item(cannon, "buildings", .defenses, .builder, counts: [0, canons, canons, canons], max: [0, 4, 4, 4],
                       levels: [(1, 3600, []), (1, hours(10), []), (1, hours(20), []), (1, hours(40), [])]),
             Rest.item(lab, "buildings", .economy, .builder, counts: [0, 1, 1, 1], max: [0, 1, 1, 1], levels: [(0, 0, [])]),
             Rest.item(troop, "units", .laboratory, .laboratory, counts: [0, 0, 0, 0], max: [0, 3, 3, 3], resource: .elixir,
@@ -116,6 +116,24 @@ enum Occ {
         #expect(post.workers == 2)
         #expect(post.available == O.hours(20))
         #expect(post.midRate == 0.5)
+    }
+
+    @Test func O1_deuxExemplairesDuMemeType_unMinuteurFiniNeSAppariePasAvecUnAutre() {
+        // Deux canons, un ouvrier. A (h0) : le canon 1 monte au niveau 3 (fin h20). B (h100) : le canon 1 est fini ; le canon 2
+        // monte au niveau 3, fin h118, durée complète 20 h : lancé à h98. Réel : 20 h + 2 h = 22 h occupées sur 100 h.
+        let ref = O.reference(canons: 2)
+        func photo(_ date: Date, _ canons: [(Int, Int?)]) -> VillageExport {
+            VillageExport(tag: "#2PP", date: date, sections: ["buildings": [Mini.e(O.th, 3), Mini.e(O.hut, 1)]
+                + canons.map { Mini.e(O.cannon, $0.0, timer: $0.1) }], idLists: [:], boosts: [:], warnings: [])
+        }
+        let a = photo(O.h(0), [(2, O.hours(20)), (2, nil)])
+        let b = photo(O.h(100), [(3, nil), (2, O.hours(18))])
+        let post = Occupation(between: a, and: b, reference: ref, profile: O.libre)!.post(.builder)!
+        #expect(post.busy == O.hours(22)...O.hours(22))
+        #expect(post.invisibleLevels == 0)
+        // Le même minuteur qui court d'une photo à l'autre reste apparié, même avec deux exemplaires.
+        let c = photo(O.h(10), [(2, O.hours(10)), (2, nil)])
+        #expect(Occupation(between: a, and: c, reference: ref, profile: O.libre)!.post(.builder)!.busy == O.hours(10)...O.hours(10))
     }
 
     // MARK: - O3 : améliorations lancées puis terminées entre deux photos
@@ -330,9 +348,9 @@ enum Occ {
     }
 
     @Test func O7_leMinuteurDeLaPhotoDonneAussiUneAttente_maisSeulementCeQuiResteApresNow() {
-        // Minuteur du niveau 3 : 10 h restantes. Attente : 10 h × 1 = 10 h ; le niveau 4 part à h20.
+        // Minuteur du niveau 3 : 10 h restantes sur 20 h. L'attente suit la durée complète : 20 h × 1 = 20 h ; le niveau 4 part à h30.
         let p = plan(Rhythm(rate: 0.5), timer: O.hours(10))
-        #expect(spans(p) == ["3 0→10", "4 20→60"])
+        #expect(spans(p) == ["3 0→10", "4 30→70"])
         // Photo vieille de 100 h : le minuteur est fini depuis longtemps, le poste est libre maintenant, sans attente.
         let r = O.reference(), vieux = O.photo(O.t0, cannon: 2, timer: O.hours(10))
         let tard = makePlan(for: Village(export: vieux, reference: r), reference: r, advice: AdviceData(), profile: O.libre,
@@ -340,9 +358,9 @@ enum Occ {
         #expect(spans(tard) == ["3 0→10", "4 100→140"])
     }
 
-    @Test func O7_lePlancherDuTauxEtLePlafondDAttente_pasDAttenteSansFin() {
-        // Un poste jamais occupé (0 %) vaut 5 % : 19 fois la durée, soit 380 h, ramenées au plafond de deux jours.
-        #expect(spans(plan(Rhythm(rate: 0))) == ["3 0→20", "4 68→108"])
+    @Test func O7_lePlancherDuTaux_pasDAttenteSansFin() {
+        // Un poste jamais occupé (0 %) vaut 5 % : 19 fois la durée, soit 380 h, sans plafond.
+        #expect(spans(plan(Rhythm(rate: 0))) == ["3 0→20", "4 400→440"])
         // À 90 %, une amélioration de 20 h fait attendre 20 h / 9 = 2 h 13 (arrondi aux secondes : le niveau 4 part à h22).
         let p = plan(Rhythm(rate: 0.9))
         #expect(Int(p.steps.filter { $0.step.itemID == Occ.cannon }.last!.start.timeIntervalSince(O.t0)) == 20 * 3600 + 8000)
@@ -375,6 +393,68 @@ enum Occ {
         #expect(canons.map { "\($0.step.level) \(Int($0.start.timeIntervalSince(O.t0)) / 3600)" } == ["3 0", "3 0", "4 40", "4 40"])
         #expect(Set(canons.suffix(2).map(\.lane)).count == 2)
         #expect(p.cap == O.h(80))
+    }
+
+    /// Un canon à dix niveaux de dix jours, un ouvrier.
+    private static let canonLong: ReferenceData = {
+        let jours = 10 * 86_400
+        return ReferenceData(items: O.reference().items.map { $0.id != Occ.cannon ? $0
+            : Rest.item(Occ.cannon, "buildings", .defenses, .builder, counts: [0, 1, 1, 1], max: [0, 11, 11, 11],
+                        levels: (0..<11).map { _ in (1, jours, []) }) }, maxTownHall: 3)
+    }()
+
+    @Test func O7_leTauxSimuleEstLeTauxMesure_canonDeDixNiveauxDeDixJours() {
+        let jour = 86_400.0, r = Self.canonLong
+        let export = O.photo(O.t0, cannon: 1)
+        let village = Village(export: export, reference: r)
+        func canons(_ rythme: Rhythm?) -> [ScheduledStep] {
+            makePlan(for: village, reference: r, advice: AdviceData(), profile: O.libre, now: O.t0, rhythm: rythme)
+                .steps.filter { $0.step.itemID == Occ.cannon }
+        }
+        let sans = canons(nil)
+        #expect(sans.count == 10)
+        #expect(sans.last!.end == O.t0.addingTimeInterval(100 * jour))
+        for rho in [0.25, 0.5, 0.8] {
+            let pas = canons(Rhythm(rate: rho))
+            #expect(pas.count == 10)
+            // Entre deux lancements : l'attente fait que le poste travaille `rho` du temps, à une seconde près.
+            for (a, b) in zip(pas, pas.dropFirst()) {
+                let travail = a.end.timeIntervalSince(a.start), attente = b.start.timeIntervalSince(a.end)
+                #expect(abs(attente - travail * (1 - rho) / rho) <= 1)
+                #expect(abs(travail / (travail + attente) - rho) < 0.01)
+            }
+            // Dix niveaux et neuf attentes (la dernière n'est pas avant un lancement : elle ne retarde pas la date).
+            let attendu = 100 * jour + 9 * 10 * jour * (1 - rho) / rho
+            #expect(abs(pas.last!.end.timeIntervalSince(O.t0) - attendu) <= 9)
+        }
+    }
+
+    @Test func O7_unePrioriteEstChoisieAuMomentDuLancement_pasAvant() {
+        // Un ouvrier. D2 (minuteur de 10 h, durée complète 10 h) finit à h10 ; l'attente à 50 % court jusqu'à h20. Le canon X
+        // (épinglé) exige la troupe niveau 2, que le labo finit à h15 (minuteur de la photo). À h10, X n'est pas prêt : le canon Y le serait ; mais le
+        // lancement a lieu à h20, quand X est prêt : X part le premier.
+        let x = Occ.cannon, y = 1000009, d2 = 1000012
+        func item(_ id: Int, _ worker: WorkerKind, _ section: String, _ requires: [Requirement], _ heures: Int) -> ReferenceItem {
+            Rest.item(id, section, worker == .laboratory ? .laboratory : .defenses, worker, counts: [0, 1, 1, 1], max: [0, 2, 2, 2],
+                      resource: worker == .laboratory ? .elixir : .gold,
+                      levels: [(1, 0, []), (1, O.hours(heures), requires)])
+        }
+        let r = ReferenceData(items: O.reference().items.filter { ![Occ.cannon, Occ.troop].contains($0.id) } + [
+            item(x, .builder, "buildings", [Requirement(itemID: Occ.troop, level: 2)], 5),
+            item(y, .builder, "buildings", [], 5), item(d2, .builder, "buildings", [], 10),
+            item(Occ.troop, .laboratory, "units", [], 15),
+        ], maxTownHall: 3)
+        let export = VillageExport(tag: "#2PP", date: O.t0, sections: [
+            "buildings": [Mini.e(Occ.th, 3), Mini.e(Occ.hut, 1), Mini.e(Occ.lab, 1), Mini.e(x, 1), Mini.e(y, 1),
+                          Mini.e(d2, 1, timer: O.hours(10))],
+            "units": [Mini.e(Occ.troop, 1, timer: O.hours(15))]], idLists: [:], boosts: [:], warnings: [])
+        let rythme = Rhythm(from: .distantPast, to: .distantPast, photos: 0, rates: [.builder: .init(low: 0.5, high: 0.5)])
+        let p = makePlan(for: Village(export: export, reference: r), reference: r, advice: AdviceData(),
+                         profile: Profile(pinned: [x], quietHours: nil), now: O.t0, rhythm: rythme)
+        let departs = p.steps.filter { $0.worker == .builder && !$0.fromSnapshot }
+            .map { "\($0.step.itemID == x ? "X" : "Y") \(Int($0.start.timeIntervalSince(O.t0)) / 3600)" }
+        // X à h20 (fin h25) ; l'attente après D2 vaut 10 h ; Y part après l'attente qui suit X (5 h × 1 = 5 h) : h30.
+        #expect(departs == ["X 20", "Y 30"])
     }
 
     @Test func O7_cap_reelHdv16_sansRythme_resteCeluiDeLaVersionPrecedente() {

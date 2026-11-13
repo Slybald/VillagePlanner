@@ -245,6 +245,15 @@ final class ModeleApp {
     /// Ce qu'il faut pour lire l'historique (écran Historique) ; nil sans données de référence.
     var sourceHistorique: (store: HistoryStore, contexte: HistoryContext)? { contexte.map { (historique, $0) } }
 
+    /// Idem pour les mesures d'occupation : les heures sans jeu dans le fuseau de l'appareil, comme le plan (`PlanAffiche`).
+    var sourceOccupation: (store: HistoryStore, contexte: HistoryContext)? {
+        contexte.map { c in
+            var profil = c.profile
+            profil.quietHours?.timeZone = .current
+            return (historique, HistoryContext(reference: c.reference, advice: c.advice, profile: profil))
+        }
+    }
+
     private var contexte: HistoryContext? {
         reference.map { HistoryContext(reference: $0, advice: conseils, profile: profil) }
     }
@@ -276,7 +285,7 @@ final class ModeleApp {
     /// puis recalcule le plan quand il change.
     func recalculerRythme() {
         calculRythme?.cancel()
-        guard let source = sourceHistorique else { rythme = nil; return }
+        guard let source = sourceOccupation else { rythme = nil; return }
         calculRythme = Task { [weak self] in
             let mesure = await Task.detached { source.store.rhythm(context: source.contexte) }.value
             guard !Task.isCancelled, let self, self.rythme != mesure else { return }

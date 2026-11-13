@@ -13,13 +13,14 @@ struct HistoriqueAffiche: Sendable {
     let rythme: Rhythm?
 
     /// Lecture complète : à faire hors de l'acteur principal (les plans se calculent).
-    nonisolated static func charger(_ store: HistoryStore, _ contexte: HistoryContext) -> HistoriqueAffiche {
+    nonisolated static func charger(_ store: HistoryStore, _ contexte: HistoryContext,
+                                    occupation contexteOccupation: HistoryContext) -> HistoriqueAffiche {
         let listing = store.refresh(contexte)
         var tickets: [Int: PhotoDiff] = [:]
         for e in listing.entries.dropFirst() {
             tickets[e.timestamp] = store.ticket(for: Snapshot(date: e.date), context: contexte)
         }
-        let paires = store.occupations(context: contexte)
+        let paires = store.occupations(context: contexteOccupation)
         return HistoriqueAffiche(listing: listing, tickets: tickets,
                                  occupations: Dictionary(paires.map { (Int($0.to.timeIntervalSince1970), $0) }) { $1 },
                                  rythme: Rhythm.measure(paires))
@@ -68,8 +69,8 @@ struct EcranHistorique: View {
     }
 
     private func recharger() async {
-        guard let source = modele.sourceHistorique else { return }
-        charge = await Task.detached { HistoriqueAffiche.charger(source.store, source.contexte) }.value
+        guard let source = modele.sourceHistorique, let occupation = modele.sourceOccupation else { return }
+        charge = await Task.detached { HistoriqueAffiche.charger(source.store, source.contexte, occupation: occupation.contexte) }.value
         #if DEBUG
         // Captures : `-historique-supprimer 1` ouvre la confirmation sur la troisième photo en partant de la fin.
         if UserDefaults.standard.bool(forKey: "historique-supprimer"), aSupprimer == nil,
