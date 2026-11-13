@@ -54,6 +54,8 @@ struct EcranCap: View {
             #endif
             .pageChantier()
             .sheet(isPresented: $modele.reglagesOuverts) { EcranReglages(reference: reference) }
+            .sheet(item: $modele.ticket) { TicketChantier(ticket: $0, reference: reference) }
+            .navigationDestination(isPresented: $modele.historiqueOuvert) { EcranHistorique(reference: reference) }
             // Le conseil est demandé à l'ouverture et quand sa clé change ; pas pendant que les Réglages sont ouverts
             // (chaque réglage toucher changerait la clé) : à leur fermeture.
             .task(id: Declencheur(cle: conseil.cle(affiche, reference: reference, conseilsDate: modele.dateConseils),
@@ -126,7 +128,7 @@ struct EcranCap: View {
         VStack(alignment: .leading, spacing: Theme.Espace.l) {
             Terrain(hdv: village.townHall, autour: affiche.plan.map(environs) ?? [])
             if let plan = affiche.plan {
-                dateDuCap(plan)
+                capTouchable(plan)
             } else {
                 GrandeDate(surtitre: "HDV \(village.townHall)",
                            date: "\(Int((total * 100).rounded()))\u{202F}%",
@@ -146,6 +148,30 @@ struct EcranCap: View {
             }
         }
         .animation(reduire ? nil : .snappy, value: total)
+    }
+
+    /// Toucher la date ouvre l'Historique (pas pour l'exemple, qui n'a pas de photo).
+    @ViewBuilder private func capTouchable(_ plan: PlanAffiche) -> some View {
+        if affiche.photo != nil {
+            Button { modele.historiqueOuvert = true } label: {
+                VStack(alignment: .leading, spacing: Theme.Espace.s) {
+                    dateDuCap(plan)
+                    HStack(spacing: Theme.Espace.xs) {
+                        Text("Historique")
+                        Image(systemName: "chevron.right").imageScale(.small)
+                    }
+                    .font(Theme.Police.detail.weight(.semibold))
+                    .foregroundStyle(Theme.Couleur.elixirTexte)
+                    .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Ouvre l'historique de tes photos")
+        } else {
+            dateDuCap(plan)
+        }
     }
 
     /// La date du cap, en très grand : « HDV 16 terminé, le 14 mars », ce qu'elle exclut et sur quoi elle repose.
