@@ -1,4 +1,7 @@
 // Réglages communs du projet.
+// Identifiant de l'app. Le widget en est dérivé (<id>.widget) et l'App Group aussi (group.<id>).
+// Pour en changer sans toucher au dépôt : redéfinir APP_BUNDLE_ID dans Signature.local.xcconfig.
+APP_BUNDLE_ID = fr.slybald.chantier
 // L'identifiant d'équipe Apple vient d'un fichier local ignoré par git (modèle : Signature.exemple.xcconfig).
 // Sans ce fichier, le projet compile quand même pour le simulateur.
 #include? "Signature.local.xcconfig"

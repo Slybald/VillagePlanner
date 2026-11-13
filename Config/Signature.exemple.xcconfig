@@ -1,3 +1,7 @@
 // Copier ce fichier en Signature.local.xcconfig (ignoré par git), puis mettre ton identifiant d'équipe Apple
 // (Xcode > Réglages > Comptes, ou developer.apple.com > Membership). Nécessaire seulement pour installer sur l'iPhone.
 DEVELOPMENT_TEAM = ABCDE12345
+
+// Facultatif : si Xcode dit que l'identifiant de l'app n'est pas disponible, mets le tien ici.
+// Le widget (<id>.widget) et l'App Group (group.<id>) suivent tout seuls.
+// APP_BUNDLE_ID = fr.tonnom.chantier
