@@ -18,7 +18,7 @@ L'API de Supercell n'accepte qu'une clé liée à des adresses IP fixes, et un i
 
 ## La mettre dans l'app
 
-Réglages, section « Compte de jeu » : colle la clé, touche « Enregistrer dans le Trousseau ». Elle est rangée dans le Trousseau de cet iPhone, sans synchronisation iCloud, sous un compte distinct de celui de la clé du conseiller. L'app ne la réaffiche plus en clair. « Lire mon profil » fait une lecture. Si le tag de la dernière photo est introuvable, l'app te le dit : importe un export récent.
+Réglages, section « Compte de jeu » : colle la clé, touche « Enregistrer dans le Trousseau ». Elle est rangée dans le Trousseau de cet iPhone, sans synchronisation iCloud, sous un compte distinct de celui de la clé du conseiller. L'app ne la réaffiche plus en clair. Une fois la clé collée, copie un autre texte (un mot, par exemple) pour vider le presse-papiers : avec le presse-papiers universel, la clé peut sinon être collée sur un autre appareil Apple connecté à ton compte. « Lire mon profil » fait une lecture. Si le tag de la dernière photo est introuvable, l'app te le dit : importe un export récent.
 
 ## La révoquer
 

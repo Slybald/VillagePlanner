@@ -4,9 +4,23 @@ import Foundation
 // Le profil lu par `GET /players/{tag}`. Tout champ absent, d'un autre type ou inconnu est toléré : seul `tag` est exigé,
 // pour reconnaître un profil. Un élément de liste illisible est écarté sans emporter les autres.
 
+/// Les longueurs maximales des textes lus : un nom de joueur tient en 15 caractères dans le jeu ; 32 laisse de la marge.
+enum Texte {
+    static let court = 32
+    static let long = 64
+}
+
 public struct LigueJoueur: Codable, Sendable, Equatable {
     public var id: Int?
     public var name: String?
+
+    public init(id: Int? = nil, name: String? = nil) { (self.id, self.name) = (id, name) }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.lenient(.id)
+        name = c.texte(.name, max: Texte.long)
+    }
 }
 
 /// Un niveau de troupe, de sort, de héros ou d'équipement.
@@ -22,10 +36,10 @@ public struct ItemJoueur: Codable, Sendable, Equatable {
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        name = try c.decode(String.self, forKey: .name)         // sans nom, l'élément ne sert à rien : écarté par la liste
+        name = String(try c.decode(String.self, forKey: .name).prefix(Texte.long))   // sans nom, l'élément ne sert à rien : écarté par la liste
         level = c.lenient(.level)
         maxLevel = c.lenient(.maxLevel)
-        village = c.lenient(.village)
+        village = c.texte(.village, max: Texte.court)
     }
 }
 
@@ -43,10 +57,10 @@ public struct HeroJoueur: Codable, Sendable, Equatable {
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        name = try c.decode(String.self, forKey: .name)
+        name = String(try c.decode(String.self, forKey: .name).prefix(Texte.long))
         level = c.lenient(.level)
         maxLevel = c.lenient(.maxLevel)
-        village = c.lenient(.village)
+        village = c.texte(.village, max: Texte.court)
         equipment = c.lenientList(.equipment)
     }
 }
@@ -64,11 +78,11 @@ public struct SuccesJoueur: Codable, Sendable, Equatable {
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        name = try c.decode(String.self, forKey: .name)
+        name = String(try c.decode(String.self, forKey: .name).prefix(Texte.long))
         stars = c.lenient(.stars)
         value = c.lenient(.value)
         target = c.lenient(.target)
-        village = c.lenient(.village)
+        village = c.texte(.village, max: Texte.court)
     }
 }
 
@@ -105,7 +119,7 @@ public struct ProfilJoueur: Codable, Sendable, Equatable {
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         tag = try c.decode(String.self, forKey: .tag)
-        name = c.lenient(.name)
+        name = c.texte(.name, max: Texte.court)
         expLevel = c.lenient(.expLevel)
         townHallLevel = c.lenient(.townHallLevel)
         trophies = c.lenient(.trophies)
@@ -132,6 +146,9 @@ private struct Lenient<T: Decodable>: Decodable {
 }
 
 extension KeyedDecodingContainer {
+    /// Un texte du service, borné : il s'affiche dans les Réglages, et un relais fautif ne doit pas y mettre un roman.
+    func texte(_ key: Key, max: Int) -> String? { lenient(key).map { (s: String) in String(s.prefix(max)) } }
+
     /// La valeur, ou nil si le champ manque, est nul ou d'un autre type.
     func lenient<T: Decodable>(_ key: Key) -> T? { (try? decode(Lenient<T>.self, forKey: key))?.value }
 

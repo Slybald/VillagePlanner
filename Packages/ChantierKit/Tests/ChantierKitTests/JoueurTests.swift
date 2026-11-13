@@ -60,16 +60,22 @@ private struct StoreMuet: SecretStore {
 /// Un banc neuf : préférences isolées, Trousseau en mémoire, faux transport. `ouverture()` donne un client neuf sur les mêmes
 /// préférences : c'est une nouvelle ouverture de l'app.
 private struct Banc: @unchecked Sendable {
-    let defaults = UserDefaults(suiteName: "chantier-test-joueur-\(UUID().uuidString)")!
+    /// Une seule suite pour tous les bancs (un seul fichier de préférences), une clé par banc.
+    static let suite = "chantier-test-joueur"
+    let cleBanc = "cadence-\(UUID().uuidString)"
+    var defaults: UserDefaults { UserDefaults(suiteName: Self.suite)! }
     let cadence: CadenceStore
     let transport: FauxTransport
     let cles: any SecretStore
 
     init(cle: String? = cleJoueur, cles: (any SecretStore)? = nil, reponses: [Reponse] = []) {
-        cadence = CadenceStore(defaults: defaults)
+        cadence = CadenceStore(defaults: UserDefaults(suiteName: Self.suite)!, key: cleBanc)
         transport = FauxTransport(reponses)
         self.cles = cles ?? MemorySecretStore(cle)
     }
+
+    /// Efface ce que le banc a écrit dans la suite.
+    func nettoyer() { defaults.removeObject(forKey: cleBanc) }
 
     func ouverture() -> ClientJoueur { ClientJoueur(keys: cles, cadence: cadence, transport: transport) }
 
@@ -111,6 +117,10 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
                   envois: 1),
         CasJoueur(nom: "tag en minuscules, sans dièse, avec O : lu comme #2PP", tag: " 2pp ", reponses: [profil(##"{"tag":"#2PP"}"##)],
                   attendu: .success(minimal), envois: 1),
+        CasJoueur(nom: "réponse au tag d'un autre joueur : refusée", reponses: [profil(##"{"tag":"2PQ","trophies":1}"##)],
+                  attendu: .failure(.invalidResponse), envois: 1),
+        CasJoueur(nom: "réponse au même tag écrit sans dièse, en minuscules : acceptée", reponses: [profil(##"{"tag":"2pp"}"##)],
+                  attendu: .success(ProfilJoueur(tag: "2pp")), envois: 1),
         // Erreurs du service
         CasJoueur(nom: "403 : clé refusée", reponses: [.http(403, [:], Data(##"{"reason":"accessDenied.invalidIp"}"##.utf8))],
                   attendu: .failure(.rejectedKey), envois: 1),
@@ -168,6 +178,7 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
     @Test(arguments: CasJoueur.table)
     func tableDesCas(_ cas: CasJoueur) async {
         let banc = Banc(cle: cas.cle, reponses: cas.reponses)
+        defer { banc.nettoyer() }
         if let d = cas.derniereLecture { _ = banc.cadence.reserver(at: apres(d)) }
         let resultat = await banc.lire(tag: cas.tag, now: cas.now)
         #expect(resultat == cas.attendu)
@@ -189,6 +200,7 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
 
     @Test func requete_getHttpsVersLHoteFixe_tagEncode_cleDansLEnTeteSeulement() async throws {
         let banc = Banc(reponses: [profil(##"{"tag":"#2PP"}"##)])
+        defer { banc.nettoyer() }
         _ = await banc.lire()
         let r = try #require(await banc.transport.requetes.first)
         let url = try #require(r.url)
@@ -214,6 +226,7 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
 
     @Test func uneSeuleLectureParOuverture_laSecondeNePartPas() async {
         let banc = Banc(reponses: [profil(##"{"tag":"#2PP"}"##)])
+        defer { banc.nettoyer() }
         let client = banc.ouverture()
         #expect(await banc.lire(avec: client) == .success(CasJoueur.minimal))
         #expect(await banc.lire(now: apres(7_200), avec: client) == .failure(.tooSoon(.thisLaunch)))   // même 2 h plus tard
@@ -222,6 +235,7 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
 
     @Test func deuxOuverturesDansLHeure_laSecondeNePartPas_uneHeureApresElleEstPermise() async {
         let banc = Banc(reponses: [profil(##"{"tag":"#2PP"}"##), profil(##"{"tag":"#2PP"}"##)])
+        defer { banc.nettoyer() }
         #expect(await banc.lire() == .success(CasJoueur.minimal))
         #expect(await banc.lire(now: apres(1_800)) == .failure(.tooSoon(.hourly(until: apres(3_600)))))
         #expect(await banc.lire(now: apres(3_599)) == .failure(.tooSoon(.hourly(until: apres(3_600)))))
@@ -232,6 +246,7 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
 
     @Test func uneLectureRefuseeParLeServiceCompte_ellePorteUneHeure() async {
         let banc = Banc(reponses: [.http(403)])
+        defer { banc.nettoyer() }
         #expect(await banc.lire() == .failure(.rejectedKey))
         #expect(await banc.lire(now: apres(60)) == .failure(.tooSoon(.hourly(until: apres(3_600)))))
         #expect(await banc.transport.requetes.count == 1)
@@ -239,6 +254,7 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
 
     @Test func pasDeReseau_laLectureNeComptePas_onPeutReessayerAussitot() async {
         let banc = Banc(reponses: [.panne(.notConnectedToInternet), profil(##"{"tag":"#2PP"}"##)])
+        defer { banc.nettoyer() }
         let client = banc.ouverture()
         #expect(await banc.lire(avec: client) == .failure(.offline))
         #expect(await banc.lire(now: apres(5), avec: client) == .success(CasJoueur.minimal))
@@ -247,12 +263,14 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
 
     @Test func delaiDepasse_laLectureCompte() async {
         let banc = Banc(reponses: [.panne(.timedOut)])
+        defer { banc.nettoyer() }
         #expect(await banc.lire() == .failure(.timeout))
         #expect(await banc.lire(now: apres(5)) == .failure(.tooSoon(.hourly(until: apres(3_600)))))
     }
 
     @Test func deuxLecturesEnMemeTemps_uneSeuleParte() async {
         let banc = Banc(reponses: [profil(##"{"tag":"#2PP"}"##)])
+        defer { banc.nettoyer() }
         let client = banc.ouverture()
         async let a = banc.lire(avec: client)
         async let b = banc.lire(avec: client)
@@ -264,13 +282,59 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
 
     @Test func horlogeAvanceeEtRemise_apresRecalage_laLectureRepartUneHeureApresLaDateDuService() async {
         let banc = Banc(reponses: [.http(200, ["Date": dateHTTP(t0)]), profil(##"{"tag":"#2PP"}"##)])
+        defer { banc.nettoyer() }
         _ = banc.cadence.reserver(at: apres(172_800))
         #expect(await banc.lire() == .failure(.tooSoon(.hourly(until: apres(3_600)))))
         #expect(await banc.lire(now: apres(3_600)) == .success(CasJoueur.minimal))
     }
 
+    // MARK: Texte venant du service
+
+    @Test func textesDuService_tronques() async throws {
+        let long = String(repeating: "é", count: 500)
+        let json = ##"{"tag":"#2PP","name":"\##(long)","leagueTier":{"name":"\##(long)"},"heroes":[{"name":"\##(long)","village":"\##(long)"}]}"##
+        let banc = Banc(reponses: [profil(json)])
+        defer { banc.nettoyer() }
+        let p = try await banc.lire().get()
+        #expect(p.name?.count == 32)
+        #expect(p.leagueTier?.name?.count == 64 && p.heroes.first?.name.count == 64 && p.heroes.first?.village?.count == 32)
+    }
+
+    // MARK: Horloge
+
+    @Test func recalage_uneSeuleSondeParOuverture_memeSiLeServiceNeDonnePasSaDate() async {
+        let banc = Banc(reponses: [.http(200), .http(200), .http(200)])
+        defer { banc.nettoyer() }
+        _ = banc.cadence.reserver(at: apres(172_800))                    // horloge avancée de 2 jours, puis remise à l'heure
+        let client = banc.ouverture()
+        for _ in 0..<3 { _ = await banc.lire(avec: client) }
+        #expect(await banc.transport.requetes.count == 1)                // une sonde, pas une par appui
+        #expect(await banc.transport.requetes.allSatisfy { $0.httpMethod == "HEAD" })
+    }
+
+    @Test func dateDuServiceSurLaLecture_neRemetPasLaCadenceAZero() async {
+        // Une date ancienne dans la réponse (relais fautif ou hostile) ne doit pas rouvrir la cadence.
+        let banc = Banc(reponses: [.http(200, ["Date": dateHTTP(apres(-259_200))], Data(##"{"tag":"#2PP"}"##.utf8))])
+        defer { banc.nettoyer() }
+        #expect(await banc.lire() == .success(CasJoueur.minimal))
+        #expect(await banc.lire(now: apres(60)) == .failure(.tooSoon(.hourly(until: apres(3_600)))))
+        #expect(await banc.transport.requetes.count == 1)
+    }
+
+    @Test func pasDeReseau_laCadenceRendueEstExactementCelleDAvant_lesDeuxDates() async throws {
+        let banc = Banc(reponses: [.panne(.notConnectedToInternet)])
+        defer { banc.nettoyer() }
+        // État d'avant : dernière lecture il y a 2 h, date la plus récente 2 jours dans le futur (lecture permise).
+        let avant = ##"{"dernierAppel":\##(t0.addingTimeInterval(-7_200).timeIntervalSinceReferenceDate),"plusRecent":\##(t0.addingTimeInterval(172_800).timeIntervalSinceReferenceDate)}"##
+        banc.defaults.set(Data(avant.utf8), forKey: banc.cleBanc)
+        let etatAvant = banc.cadence.load()
+        #expect(await banc.lire() == .failure(.offline))
+        #expect(banc.cadence.load() == etatAvant)
+    }
+
     @Test func troussauMuet_cleInconnue_rienNePart() async {
         let banc = Banc(cles: StoreMuet())
+        defer { banc.nettoyer() }
         #expect(await banc.lire() == .failure(.keychainUnavailable))
         #expect(await banc.transport.requetes.isEmpty)
         #expect(banc.cadence.load().dernierAppel == nil)                 // et la cadence n'est pas entamée
@@ -278,9 +342,11 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
 
     @Test func sansCleOuSansTag_laCadenceNEstPasEntamee() async {
         let sansCle = Banc(cle: nil)
+        defer { sansCle.nettoyer() }
         _ = await sansCle.lire()
         #expect(sansCle.cadence.load().dernierAppel == nil)
         let sansTag = Banc()
+        defer { sansTag.nettoyer() }
         _ = await sansTag.lire(tag: nil)
         #expect(sansTag.cadence.load().dernierAppel == nil)
     }
@@ -289,6 +355,7 @@ struct CasJoueur: Sendable, CustomTestStringConvertible {
 
     @Test func cle_jamaisDansLesPreferences_ni_standard_ni_celles_de_la_cadence() async {
         let banc = Banc(reponses: [profil(##"{"tag":"#2PP"}"##), .http(403)])
+        defer { banc.nettoyer() }
         _ = await banc.lire()
         _ = await banc.lire(now: apres(4_000))
         for defaults in [banc.defaults, UserDefaults.standard] {

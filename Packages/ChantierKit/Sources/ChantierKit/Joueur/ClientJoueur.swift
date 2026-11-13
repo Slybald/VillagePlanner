@@ -55,6 +55,8 @@ public actor ClientJoueur {
     private let timeout: Duration
     /// Une lecture au plus par ouverture de l'app : une instance vit autant que le processus (une instance neuve = une nouvelle ouverture).
     private var luCetteOuverture = false
+    /// La sonde d'horloge a déjà été tentée depuis l'ouverture.
+    private var recalageTente = false
 
     public init(keys: any SecretStore, cadence: CadenceStore, transport: (any HTTPTransport)? = nil,
                 timeout: Duration = ClientJoueur.timeout) {
@@ -75,11 +77,16 @@ public actor ClientJoueur {
         guard let url = Self.url(forTag: tag) else { throw .invalidTag }
         if luCetteOuverture { throw .tooSoon(.thisLaunch) }
 
-        let avant = cadence.load()
+        var avant = cadence.load()
         var jusqua = cadence.reserver(at: now)
         // Bloqué par une date plus récente que l'horloge : peut-être une horloge mise dans le futur puis remise à l'heure.
-        if jusqua != nil, let vue = avant.plusRecent, vue > now.addingTimeInterval(Budget.clockTolerance), await recalerHorloge() {
-            jusqua = cadence.reserver(at: now)
+        // Une seule sonde par ouverture, qu'elle réussisse ou non : sans date du service, chaque appui n'en enverrait pas une de plus.
+        if jusqua != nil, !recalageTente, let vue = avant.plusRecent, vue > now.addingTimeInterval(Budget.clockTolerance) {
+            recalageTente = true
+            if await recalerHorloge() {
+                avant = cadence.load()                       // ce qu'une annulation rendra : l'état recalé, pas celui d'avant
+                jusqua = cadence.reserver(at: now)
+            }
         }
         if let jusqua { throw .tooSoon(.hourly(until: jusqua)) }
         luCetteOuverture = true
@@ -90,10 +97,10 @@ public actor ClientJoueur {
             throw Self.transportError(error)
         }
         guard let http = response as? HTTPURLResponse else { throw .invalidResponse }
-        if let date = ClaudeClient.serverDate(http) { cadence.recaler(serverDate: date) }
         switch http.statusCode {
         case 200:
-            guard let profil = ProfilJoueur.decode(data) else { throw .invalidResponse }
+            // Un profil qui n'est pas celui demandé (relais fautif, réponse d'un autre cache) n'est pas montré comme le sien.
+            guard let profil = ProfilJoueur.decode(data), Self.normalizedTag(profil.tag) == Self.normalizedTag(tag) else { throw .invalidResponse }
             return profil
         case 403: throw .rejectedKey
         case 404: throw .notFound
