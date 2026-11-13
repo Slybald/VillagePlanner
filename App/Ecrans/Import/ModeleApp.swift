@@ -303,6 +303,9 @@ final class ModeleApp {
                                       changements: affiche.changements)
     }
 
+    /// Le tag du joueur, lu dans la dernière photo (jamais en dur) ; nil sans photo lisible. Sert à l'API officielle (T29).
+    var tagJoueur: String? { store.latest()?.export.tag }
+
     // MARK: Presse-papiers
 
     /// Au retour au premier plan. `hasStrings` et `changeCount` ne lisent rien et n'affichent aucune alerte.
