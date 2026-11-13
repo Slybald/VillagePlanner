@@ -10,6 +10,8 @@ struct CarteRythme: View {
     let fuseau: TimeZone
     let rythme: Rhythm
 
+    @Environment(\.dynamicTypeSize) private var tailleTexte
+
     private var ecart: Int { Int(aTonRythme.timeIntervalSince(auPlusTot).rounded()) }
 
     var body: some View {
@@ -36,7 +38,7 @@ struct CarteRythme: View {
             Text(titre).etiquetteChantier()
             Text(date)
                 .font(Theme.Police.chiffreGrand)
-                .lineLimit(1)
+                .lineLimit(tailleTexte.isAccessibilitySize ? nil : 1)
                 .minimumScaleFactor(0.5)
             Text(detail).font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux)
         }

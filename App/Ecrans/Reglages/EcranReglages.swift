@@ -106,6 +106,7 @@ struct EcranReglages: View {
                 Text("Tout est terminé").tag(TownHallThreshold.complete)
                 Text("Héros et labo terminés").tag(TownHallThreshold.heroesAndLab)
             }
+            .pickerStyle(.inline)      // les deux choix en toutes lettres : le menu coupait « Tout est terminé » en très grande police
         } footer: { note("Monter tôt est une stratégie défendue par une partie des joueurs : à toi de choisir quand l'app le conseille.") }
         .listRowBackground(Theme.Couleur.surface)
     }

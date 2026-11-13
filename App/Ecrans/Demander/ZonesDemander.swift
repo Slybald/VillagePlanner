@@ -7,12 +7,13 @@ private struct ChampEnvoi: View {
     @Binding var texte: String
     let actif: Bool
     let envoyer: () -> Void
+    @Environment(\.dynamicTypeSize) private var tailleTexte
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.s) {
             TextField(titre, text: $texte, axis: .vertical)
                 .font(Theme.Police.texte)
-                .lineLimit(1...4)
+                .lineLimit(1...(tailleTexte.isAccessibilitySize ? 12 : 4))      // 400 caractères en très grande police : le texte saisi ne se coupe pas
                 .padding(Theme.Espace.m)
                 .background(Theme.Couleur.creux, in: .rect(cornerRadius: Theme.rayon))
                 .submitLabel(.send)
