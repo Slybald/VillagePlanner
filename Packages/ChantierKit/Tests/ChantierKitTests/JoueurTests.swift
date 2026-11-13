@@ -60,16 +60,16 @@ private struct StoreMuet: SecretStore {
 /// Un banc neuf : préférences isolées, Trousseau en mémoire, faux transport. `ouverture()` donne un client neuf sur les mêmes
 /// préférences : c'est une nouvelle ouverture de l'app.
 private struct Banc: @unchecked Sendable {
-    /// Une seule suite pour tous les bancs (un seul fichier de préférences), une clé par banc.
-    static let suite = "chantier-test-joueur"
+    /// Préférences en mémoire, propres au banc (rien sur le disque), une clé par banc.
+    let prefs = PreferencesDeTest.neuves()
     let cleBanc = "cadence-\(UUID().uuidString)"
-    var defaults: UserDefaults { PreferencesDeTest.neuves(Self.suite) }
+    var defaults: UserDefaults { prefs }
     let cadence: CadenceStore
     let transport: FauxTransport
     let cles: any SecretStore
 
     init(cle: String? = cleJoueur, cles: (any SecretStore)? = nil, reponses: [Reponse] = []) {
-        cadence = CadenceStore(defaults: PreferencesDeTest.neuves(Self.suite), key: cleBanc)
+        cadence = CadenceStore(defaults: prefs, key: cleBanc)
         transport = FauxTransport(reponses)
         self.cles = cles ?? MemorySecretStore(cle)
     }
