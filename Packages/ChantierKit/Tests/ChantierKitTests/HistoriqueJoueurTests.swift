@@ -46,7 +46,7 @@ import Testing
         #expect(h.lectures().isEmpty && h.equipes().isEmpty)
         #expect(h.enregistrer(Self.profil(10), le: Self.t(0)))
         #expect(h.lectures().count == 1)
-        #expect(FileManager.default.fileExists(atPath: h.urlAbime.path))            // l'ancien contenu reste
+        #expect(try FileManager.default.contentsOfDirectory(atPath: d.url.path).contains { $0.hasPrefix("joueur-abime") })            // l'ancien contenu reste
     }
 
     @Test func uneLectureIllisible_ecarteeSansEmporterLesAutres() throws {
@@ -77,12 +77,50 @@ import Testing
         #expect(h.equipes() == [HerosEquipe(heros: "Barbarian King", equipements: ["Rage Vial"])])
     }
 
-    @Test func lectureSansEquipement_viderLaListe() {
+    @Test func lectureSansAucunChampEquipement_gardeLesListesPrecedentes() {
         let d = DossierTemporaire(); defer { d.supprimer() }
         let h = HistoriqueJoueur(root: d.url)
         h.enregistrer(Self.profil(1), le: Self.t(0))
-        h.enregistrer(ProfilJoueur(tag: "#2PP", trophies: 3), le: Self.t(3600))
-        #expect(h.equipements(reference: Réel.reference) == nil)                    // l'API ne donne plus rien : retour à la règle V4
+        h.enregistrer(ProfilJoueur(tag: "#2PP", trophies: 3), le: Self.t(3600))     // le service n'a rien dit des équipements
+        #expect(h.equipements(reference: Réel.reference)?.equipes.count == 1)
+        #expect(h.equipes() == [HerosEquipe(heros: "Barbarian King", equipements: ["Rage Vial"])])
         #expect(h.lectures().count == 2)
+        // Il dit des équipements possédés, aucun équipé : la liste des équipés se vide.
+        h.enregistrer(ProfilJoueur(tag: "#2PP", heroEquipment: [ItemJoueur(name: "Rage Vial")]), le: Self.t(7200))
+        #expect(h.equipes().isEmpty && h.equipements(reference: Réel.reference)?.possedes.count == 1)
+    }
+
+    @Test func deuxAbimages_garderChaqueCopie_jamaisSupprimer() throws {
+        let d = DossierTemporaire(); defer { d.supprimer() }
+        try FileManager.default.createDirectory(at: d.url, withIntermediateDirectories: true)
+        let h = HistoriqueJoueur(root: d.url)
+        try Data("{ premier".utf8).write(to: h.url)
+        h.enregistrer(Self.profil(1), le: Self.t(0))
+        try Data("{ second".utf8).write(to: h.url)
+        h.enregistrer(Self.profil(2), le: Self.t(0))                                // même seconde : le nom ne doit pas se heurter
+        let copies = try FileManager.default.contentsOfDirectory(atPath: d.url.path).filter { $0.hasPrefix("joueur-abime") }
+        let textes = try copies.map { try String(contentsOf: d.url.appending(path: $0), encoding: .utf8) }
+        #expect(copies.count == 2 && Set(textes) == ["{ premier", "{ second"])
+    }
+
+    @Test func fichierQuiExisteMaisNeSeLitPas_rienNEstEcrit() throws {
+        let d = DossierTemporaire(); defer { d.supprimer() }
+        let h = HistoriqueJoueur(root: d.url)
+        try FileManager.default.createDirectory(at: h.url, withIntermediateDirectories: true)   // existe, ne se lit pas comme un fichier
+        #expect(!h.enregistrer(Self.profil(1), le: Self.t(0)))
+        var estDossier: ObjCBool = false
+        #expect(FileManager.default.fileExists(atPath: h.url.path, isDirectory: &estDossier) && estDossier.boolValue)
+        #expect(h.lectures().isEmpty)
+    }
+
+    @Test func identifiant_neChercheQueParmiLesEquipements() {
+        func it(_ id: Int, _ cat: ChantierKit.Category, _ section: String) -> ReferenceItem {
+            let b = Rest.item(id, section, cat, .builder, counts: [0, 1], max: [0, 1], levels: [(1, 1, [])])
+            return ReferenceItem(id: id, names: ["en": "Doublon"], section: section, category: cat, exclusion: b.exclusion, worker: b.worker,
+                                 levels: b.levels, countByTownHall: b.countByTownHall, maxLevelByTownHall: b.maxLevelByTownHall, mergedFrom: [])
+        }
+        let r = ReferenceData(items: [it(28000099, .heroes, "heroes"), it(90000099, .equipment, "equipment")], maxTownHall: 1)
+        #expect(EquipementsJoueur.identifiant("doublon", dans: r) == 90000099)
+        #expect(EquipementsJoueur.identifiant("Doublon", dans: r, categorie: .heroes) == 28000099)
     }
 }

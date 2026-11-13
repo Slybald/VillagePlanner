@@ -281,8 +281,8 @@ struct EquipementsEquipes: View {
     let heros: [HerosEquipe]
     let reference: ReferenceData
 
-    private func element(_ nom: String) -> (id: Int?, nom: String) {
-        let id = EquipementsJoueur.identifiant(nom, dans: reference)
+    private func element(_ nom: String, _ categorie: ChantierKit.Category = .equipment) -> (id: Int?, nom: String) {
+        let id = EquipementsJoueur.identifiant(nom, dans: reference, categorie: categorie)
         return (id, id.flatMap { reference.item($0)?.name } ?? nom)
     }
 
@@ -290,7 +290,7 @@ struct EquipementsEquipes: View {
         VStack(alignment: .leading, spacing: Theme.Espace.l) {
             Text("Équipés").etiquetteChantier()
             ForEach(heros, id: \.heros) { h in
-                let (idHeros, nomHeros) = element(h.heros)
+                let (idHeros, nomHeros) = element(h.heros, .heroes)
                 VStack(alignment: .leading, spacing: Theme.Espace.s) {
                     HStack(spacing: Theme.Espace.m) {
                         image(idHeros, 44)

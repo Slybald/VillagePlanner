@@ -320,8 +320,7 @@ final class ModeleApp {
     func joueurLu(_ profil: ProfilJoueur, le date: Date) {
         joueur.enregistrer(profil, le: date)
         guard let reference else { return }
-        let nouveaux = EquipementsJoueur(profil: profil, reference: reference)
-        guard nouveaux != equipements else { return }
+        guard let nouveaux = EquipementsJoueur(profil: profil, reference: reference), nouveaux != equipements else { return }
         equipements = nouveaux
         if let derniere = store.latest(), affiche?.estExemple == false {
             affiche = calculer(derniere.export, photo: derniere.snapshot)

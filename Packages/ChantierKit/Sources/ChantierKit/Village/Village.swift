@@ -49,7 +49,8 @@ public struct Village: Sendable {
             // Minuteur illisible gardé brut par le lecteur : en cours, fin inconnue, jamais terminé.
             let upgrading = entry.timer != nil || entry.extras["timer"] != nil
             // V4 : un équipement au niveau 1 est tenu pour non possédé, sauf si l'API dit qu'on le possède.
-            if item.category == .equipment, level <= 1, !upgrading, !(joueur?.possedes.contains(item.id) ?? false) { continue }
+            if item.category == .equipment, level <= 1, !upgrading,
+               !(level == 1 && (joueur?.possedes.contains(item.id) ?? false)) { continue }
             if thKnown, level > item.maxLevel(atTownHall: th) { stale = true }   // V6 : compté terminé, bandeau
             present[item.id, default: 0] += entry.count
             elements.append(Element(item: item, townHall: th, level: level, count: entry.count,

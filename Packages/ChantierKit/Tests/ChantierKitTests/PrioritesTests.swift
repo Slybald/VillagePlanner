@@ -355,6 +355,12 @@ enum Prio {
         #expect(P.queues(Self.forge, s, joueur: EquipementsJoueur(possedes: [P.gear2]))[.blacksmith]!.isEmpty)
     }
 
+    @Test func v4_lApiNeFaitPasExisterUnEquipementAuNiveauZero() {
+        let s = ["equipment": [P.e(P.gear, 0)]]
+        let (v, _) = P.village(Self.forge, s, joueur: EquipementsJoueur(possedes: [P.gear]))
+        #expect(!v.elements.contains { $0.itemID == P.gear })
+    }
+
     @Test func exempleReelHdv16_forgeEquipesEnTete_lesAutresGardentLeurOrdre() {
         let forge = Réel.queues[.blacksmith]!
         let equipes = Set(forge.map(\.step.itemID).reversed().prefix(2))             // les deux derniers de la file : jamais en tête

@@ -61,9 +61,9 @@ public struct EquipementsJoueur: Sendable, Equatable {
     }
 
     /// Le type de la référence portant ce nom (nom anglais de l'API) ; nil si la référence ne le connaît pas encore.
-    public static func identifiant(_ nom: String, dans reference: ReferenceData) -> Int? {
+    public static func identifiant(_ nom: String, dans reference: ReferenceData, categorie: Category = .equipment) -> Int? {
         let cle = nom.lowercased()
-        return reference.items.first { $0.names["en"]?.lowercased() == cle }?.id
+        return reference.items.first { $0.category == categorie && $0.names["en"]?.lowercased() == cle }?.id
     }
 
     /// Ce que dit un profil lu ; nil s'il ne dit rien des équipements (la règle V4 reste alors la seule source).
@@ -92,7 +92,6 @@ public struct HistoriqueJoueur: Sendable {
     static let format = 1
 
     var url: URL { root.appending(path: "joueur.json") }
-    var urlAbime: URL { root.appending(path: "joueur-abime.json") }
 
     struct Fichier: Codable, Equatable {
         var format = HistoriqueJoueur.format
@@ -130,40 +129,64 @@ public struct HistoriqueJoueur: Sendable {
         return d
     }
 
-    /// nil : pas de fichier, ou fichier qui ne se relit pas (`abime` dit lequel des deux).
-    private func lire() -> (fichier: Fichier?, abime: Bool) {
-        guard let data = try? Data(contentsOf: url) else { return (nil, false) }
-        guard let f = try? Self.decodeur().decode(Fichier.self, from: data), f.format == Self.format else { return (nil, true) }
-        return (f, false)
+    private enum Etat { case absent, lu(Fichier), abime, illisible }
+
+    /// `absent` : pas de fichier. `abime` : le contenu ne se relit pas. `illisible` : le fichier est là mais le système refuse
+    /// de le lire (appareil verrouillé, erreur d'E/S) : on n'y touche pas, on ne repart pas d'un fichier vide.
+    private func lire() -> Etat {
+        guard FileManager.default.fileExists(atPath: url.path) else { return .absent }
+        guard let data = try? Data(contentsOf: url) else { return .illisible }
+        guard let f = try? Self.decodeur().decode(Fichier.self, from: data), f.format == Self.format else { return .abime }
+        return .lu(f)
     }
+
+    /// Met le fichier abîmé de côté sous un nom daté ; jamais d'effacement. Faux si le déplacement échoue.
+    private func mettreDeCote(_ date: Date) -> Bool {
+        let base = "joueur-abime-\(Int(date.timeIntervalSince1970))"
+        var cible = root.appending(path: "\(base).json")
+        var n = 2
+        while FileManager.default.fileExists(atPath: cible.path) { cible = root.appending(path: "\(base)-\(n).json"); n += 1 }
+        return (try? FileManager.default.moveItem(at: url, to: cible)) != nil
+    }
+
+    private func fichierLu() -> Fichier? { if case .lu(let f) = lire() { f } else { nil } }
 
     /// Les lectures, de la plus ancienne à la plus récente ; vide si le fichier manque ou ne se relit pas.
     public func lectures() -> [LectureJoueur] {
-        (lire().fichier?.lectures ?? []).sorted { $0.date < $1.date }
+        (fichierLu()?.lectures ?? []).sorted { $0.date < $1.date }
     }
 
     /// Les héros et leurs équipements équipés à la dernière lecture.
-    public func equipes() -> [HerosEquipe] { lire().fichier?.equipes ?? [] }
+    public func equipes() -> [HerosEquipe] { fichierLu()?.equipes ?? [] }
 
     /// Ce que l'API disait à la dernière lecture ; nil avant la première lecture.
     public func equipements(reference: ReferenceData) -> EquipementsJoueur? {
-        guard let f = lire().fichier, !(f.possedes.isEmpty && f.equipes.isEmpty) else { return nil }
+        guard let f = fichierLu(), !(f.possedes.isEmpty && f.equipes.isEmpty) else { return nil }
         return EquipementsJoueur(possedes: f.possedes.map { ItemJoueur(name: $0) }, equipes: f.equipes, reference: reference)
     }
 
     /// Garde la lecture. Deux lectures de la même seconde n'en font qu'une. Faux si le fichier ne s'écrit pas.
     @discardableResult
     public func enregistrer(_ profil: ProfilJoueur, le date: Date) -> Bool {
-        let (lu, abime) = lire()
-        if abime { try? FileManager.default.removeItem(at: urlAbime); try? FileManager.default.moveItem(at: url, to: urlAbime) }
-        var f = lu ?? Fichier()
+        var f: Fichier
+        switch lire() {
+        case .lu(let lu): f = lu
+        case .absent: f = Fichier()
+        case .abime:
+            guard mettreDeCote(date) else { return false }
+            f = Fichier()
+        case .illisible: return false                  // l'historique existe : on n'écrit rien par-dessus
+        }
         let l = LectureJoueur(profil: profil, date: date)
         f.lectures.removeAll { $0.id == l.id }
         f.lectures.append(l)
         f.lectures.sort { $0.date < $1.date }
         if f.lectures.count > Self.maximum { f.lectures.removeFirst(f.lectures.count - Self.maximum) }
-        f.possedes = profil.heroEquipment.map(\.name)
-        f.equipes = profil.heroes.filter { !$0.equipment.isEmpty }.map { HerosEquipe(heros: $0.name, equipements: $0.equipment.map(\.name)) }
+        // Un profil qui ne dit rien des équipements (champs absents) laisse les listes précédentes en place.
+        if !(profil.heroEquipment.isEmpty && profil.heroes.allSatisfy { $0.equipment.isEmpty }) {
+            f.possedes = profil.heroEquipment.map(\.name)
+            f.equipes = profil.heroes.filter { !$0.equipment.isEmpty }.map { HerosEquipe(heros: $0.name, equipements: $0.equipment.map(\.name)) }
+        }
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             try Self.encodeur().encode(f).write(to: url, options: .atomic)
