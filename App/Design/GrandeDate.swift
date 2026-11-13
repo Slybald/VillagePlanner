@@ -11,16 +11,16 @@ struct GrandeDate: View {
     /// « hors murs et équipements »
     var mention: String? = nil
 
-    @ScaledMetric(relativeTo: .largeTitle) private var taille: CGFloat = 60
-
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.xs) {
             Text(surtitre)
                 .font(Theme.Police.surtitre)
                 .foregroundStyle(Theme.Couleur.texteDoux)
             Text(date)
-                // Plafond de taille ; une seule ligne, réduite si besoin : « le 10 novembre » ne se coupe jamais en deux.
-                .font(Theme.Police.date(min(taille, 92)))
+                // Suit la taille du texte, plafonnée à accessibility1 ; une seule ligne, réduite si besoin :
+                // « le 10 novembre » ne se coupe jamais en deux.
+                .font(Theme.Police.grandeDate)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
                 .contentTransition(.numericText())

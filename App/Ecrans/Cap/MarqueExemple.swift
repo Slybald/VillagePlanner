@@ -30,13 +30,12 @@ struct LigneTexte: View {
     let valeur: String
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Theme.Espace.xs) {
-            Text(nom).font(Theme.Police.texte).layoutPriority(1)
-            Spacer(minLength: Theme.Espace.m)
+        LigneEtiquetee {
+            Text(nom).font(Theme.Police.texte)
+        } droite: {
             Text(valeur)
                 .font(Theme.Police.chiffre)
                 .foregroundStyle(Theme.Couleur.texteDoux)
-                .multilineTextAlignment(.trailing)
         }
         .accessibilityElement(children: .combine)
     }

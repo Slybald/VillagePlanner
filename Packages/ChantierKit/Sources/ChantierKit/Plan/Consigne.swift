@@ -147,13 +147,13 @@ extension Lisible {
         }
     }
 
-    /// Ce qui suit « libre depuis » : « 14 h » (aujourd'hui), « hier 14 h », « mardi 14 h » (dans la semaine),
+    /// Ce qui suit « libre depuis » : « aujourd'hui 14 h » (jamais « 14 h » seul : on y lirait une durée), « hier 14 h », « mardi 14 h » (dans la semaine),
     /// « le 9 novembre » au-delà. `date` est avant `now`.
     public static func depuis(_ date: Date, now: Date, timeZone: TimeZone) -> String {
         let e = ecart(date, now: now, timeZone: timeZone)
         let heure = heure(date, timeZone: timeZone)
         switch e {
-        case 0...: return heure
+        case 0...: return "aujourd'hui\u{00A0}" + heure
         case -1: return "hier\u{00A0}" + heure
         case -6 ... -2: return jours[calendrier(timeZone).component(.weekday, from: date) - 1] + "\u{00A0}" + heure
         default: return "le\u{00A0}" + jour(date, now: now, timeZone: timeZone)

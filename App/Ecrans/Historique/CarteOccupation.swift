@@ -74,7 +74,8 @@ struct CarteOccupation: View {
                     Text(TexteOccupation.poste(premiere.poste) + " au travail")
                         .font(Theme.Police.texte)
                     Text(premiere.texte)
-                        .font(Theme.Police.date(tailleTexte.isAccessibilitySize ? 44 : 52))
+                        .font(Theme.Police.grandeDate)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                     if let i = premiere.intervalle {

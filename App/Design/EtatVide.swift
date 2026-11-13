@@ -11,6 +11,16 @@ struct EtatVide: View {
     var action: (() -> Void)? = nil
 
     var body: some View {
+        // Défilante : à la plus grande police, le message passe sous l'écran au lieu d'être coupé.
+        GeometryReader { geo in
+            ScrollView {
+                contenu.frame(minHeight: geo.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
+    private var contenu: some View {
         VStack(spacing: Theme.Espace.m) {
             if let illustration, let image = Illustrations.image(illustration, niveau: 1) {
                 Image(uiImage: image).resizable().interpolation(.high).scaledToFit()
@@ -26,10 +36,12 @@ struct EtatVide: View {
             Text(titre)
                 .font(Theme.Police.titre)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Text(message)
                 .font(Theme.Police.texte)
                 .foregroundStyle(Theme.Couleur.texteDoux)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             if let titreAction, let action {
                 Button(titreAction, action: action)
                     .buttonStyle(.borderedProminent)

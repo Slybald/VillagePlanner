@@ -126,7 +126,8 @@ struct EcranCap: View {
 
     private func avancement(_ total: Double) -> some View {
         VStack(alignment: .leading, spacing: Theme.Espace.l) {
-            Terrain(hdv: village.townHall, autour: affiche.plan.map(environs) ?? [])
+            let autour = affiche.plan.map(environs) ?? []
+            Terrain(hdv: village.townHall, autour: autour, libelle: libelleTerrain(autour))
             if let plan = affiche.plan {
                 capTouchable(plan)
                 if let rythme = plan.rythme, let tot = plan.plan.cap, let rythmique = plan.planRythme?.cap {
@@ -139,12 +140,15 @@ struct EcranCap: View {
                            mouvement: "d'avancement total")
             }
             VStack(alignment: .leading, spacing: Theme.Espace.s) {
-                HStack(alignment: .firstTextBaseline) {
+                // Aux tailles d'accessibilité, le titre passe au-dessus du pourcentage : il ne se coupe plus en pleine syllabe.
+                let disposition = tailleTexte.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Espace.xs))
+                                                                  : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+                disposition {
                     Text("Avancement total").etiquetteChantier()
-                    Spacer()
+                    if !tailleTexte.isAccessibilitySize { Spacer() }
                     Text.pourcentageGrand(total)
                 }
-                Jauge(valeur: total)
+                Jauge(valeur: total).accessibilityHidden(true)      // le pourcentage est lu avec le titre
             }
             .accessibilityElement(children: .combine)
             if let plan = affiche.plan, let phrase = phraseDernierPoste(plan.plan) {
@@ -194,6 +198,13 @@ struct EcranCap: View {
         }
         return GrandeDate(surtitre: "HDV \(village.townHall)", date: "Tout est fait",
                           mouvement: "Plus rien à améliorer.", mention: "hors murs et équipements")
+    }
+
+    /// « Hôtel de ville, niveau 16 sur 17. Dernières améliorations : Canon, niveau 14 sur 15 ; … »
+    private func libelleTerrain(_ autour: [Environ]) -> String {
+        let hdv = "Hôtel de ville, niveau \(village.townHall)"
+        guard !autour.isEmpty else { return hdv }
+        return hdv + ". Elles décident de la date : " + autour.map { "\(nom($0.id)), niveau \($0.niveau) sur \($0.maximum)" }.joined(separator: " ; ")
     }
 
     /// Les éléments dont dépend la date : les dernières améliorations du poste qui finit en dernier.

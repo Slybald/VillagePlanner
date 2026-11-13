@@ -19,8 +19,8 @@ public enum Variante: Equatable, Sendable {
     public static let pourcents = Array(stride(from: 5, through: 90, by: 5))
 
     /// nil pour « aucune » ; une erreur pour toute valeur hors liste (identifiant inconnu, pourcentage absent ou hors bornes).
+    /// Un pourcentage donné avec une autre variante que « reduction » est ignoré (le modèle remplit parfois le champ pour rien).
     public static func reconnaitre(_ identifiant: String, pourcent: Int?) -> Result<Variante?, MotifRejetQuestion> {
-        if identifiant != "reduction", let pourcent { return .failure(.pourcent(pourcent)) }
         switch identifiant {
         case "aucune": return .success(nil)
         case "ouvrier_en_plus": return .success(.ouvrierEnPlus)
@@ -219,8 +219,7 @@ public enum Questions {
 
     /// Le message envoyé : le résumé du plan, puis la question dans son bloc (sans chevrons, 300 caractères au plus).
     public static func message(question: String, resume: ResumeConseil) -> String {
-        let q = String(question.replacingOccurrences(of: "<", with: " ").replacingOccurrences(of: ">", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines).prefix(questionMax))
+        let q = String(GardeProfil.sansChevrons(question).trimmingCharacters(in: .whitespacesAndNewlines).prefix(questionMax))
         return "\(resume.texte)\n\n<question_du_joueur>\n\(q)\n</question_du_joueur>"
     }
 

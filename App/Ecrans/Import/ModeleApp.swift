@@ -242,6 +242,7 @@ final class ModeleApp {
         guard village.status != .unknownTownHall else { return nil }
         return PlanAffiche(village: village, export: export, reference: reference, conseils: conseils, profil: profil,
                            maintenant: PlanAffiche.horloge(village: village, estExemple: estExemple),
+                           aujourdhui: estExemple ? Date() : nil,
                            rythme: estExemple ? nil : rythme)
     }
 
