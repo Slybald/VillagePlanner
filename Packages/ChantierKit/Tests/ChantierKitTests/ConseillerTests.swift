@@ -262,7 +262,7 @@ private func bonneReponse(_ c: Complet) -> Reponse {
 extension BancConseiller {
     /// Un nouveau `Conseiller` sur les mêmes préférences : l'app rouverte.
     static func rouvrir(_ banc: BancConseiller) -> Conseiller {
-        let client = ClaudeClient(keys: MemorySecretStore(BancConseiller.cle), budget: BudgetStore(defaults: UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!),
+        let client = ClaudeClient(keys: MemorySecretStore(BancConseiller.cle), budget: BudgetStore(defaults: PreferencesDeTest.neuves()),
                                   transport: FauxTransport([]), calendar: BancConseiller.calendrier, sleep: { _ in })
         return Conseiller(client: client, store: banc.store)
     }

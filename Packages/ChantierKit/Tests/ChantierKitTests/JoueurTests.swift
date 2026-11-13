@@ -63,13 +63,13 @@ private struct Banc: @unchecked Sendable {
     /// Une seule suite pour tous les bancs (un seul fichier de préférences), une clé par banc.
     static let suite = "chantier-test-joueur"
     let cleBanc = "cadence-\(UUID().uuidString)"
-    var defaults: UserDefaults { UserDefaults(suiteName: Self.suite)! }
+    var defaults: UserDefaults { PreferencesDeTest.neuves(Self.suite) }
     let cadence: CadenceStore
     let transport: FauxTransport
     let cles: any SecretStore
 
     init(cle: String? = cleJoueur, cles: (any SecretStore)? = nil, reponses: [Reponse] = []) {
-        cadence = CadenceStore(defaults: UserDefaults(suiteName: Self.suite)!, key: cleBanc)
+        cadence = CadenceStore(defaults: PreferencesDeTest.neuves(Self.suite), key: cleBanc)
         transport = FauxTransport(reponses)
         self.cles = cles ?? MemorySecretStore(cle)
     }

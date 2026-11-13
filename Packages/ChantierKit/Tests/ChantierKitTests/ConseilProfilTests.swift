@@ -28,7 +28,7 @@ private struct Banc {
     let defaults: UserDefaults
 
     init(_ reponses: [Reponse]) {
-        defaults = UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!
+        defaults = PreferencesDeTest.neuves()
         transport = FauxTransport(reponses)
         var c = Calendar(identifier: .gregorian)
         c.timeZone = fuseau
