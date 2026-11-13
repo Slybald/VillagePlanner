@@ -108,7 +108,7 @@ struct ExplicationJoueur: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
             Text("Ton profil de joueur").font(Theme.Police.titre)
-            Text("Cet écran montrerait tes trophées, ta ligue, tes étoiles de guerre et tes dons, avec leur courbe au fil des jours, et les équipements que tes héros portent. Les équipements équipés passent aussi en tête de la forge dans le conseil.")
+            Text("Cet écran montrerait tes trophées, ta ligue, tes étoiles de guerre et tes dons, avec leur courbe, et les équipements que portent tes héros.")
                 .font(Theme.Police.texte).foregroundStyle(Theme.Couleur.texteDoux)
                 .fixedSize(horizontal: false, vertical: true)
             switch cle {
@@ -123,7 +123,7 @@ struct ExplicationJoueur: View {
                 Text("Le Trousseau ne répond pas. Déverrouille l'iPhone, puis rouvre cet écran.")
                     .font(Theme.Police.texte).fixedSize(horizontal: false, vertical: true)
             case .absent:
-                Text("Pour l'activer, colle une clé d'API officielle dans Réglages, section Compte de jeu. C'est facultatif : le reste de l'app marche sans.")
+                Text("Pour l'activer, colle une clé d'API dans Réglages, section Compte de jeu : c'est facultatif, le reste de l'app marche sans.")
                     .font(Theme.Police.texte).fixedSize(horizontal: false, vertical: true)
                 Button("Aller aux Réglages", action: retour)
                     .buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
@@ -257,7 +257,7 @@ struct CourbeJoueur: View {
             if tailleTexte.isAccessibilitySize {
                 AxisMarks(values: [points.first?.date, points.last?.date].compactMap { $0 }) { _ in etiquetteDate }
             } else {
-                AxisMarks(values: .automatic(desiredCount: 4)) { _ in etiquetteDate }
+                AxisMarks(values: .automatic(desiredCount: 3)) { _ in etiquetteDate }
             }
         }
         .frame(height: tailleTexte.isAccessibilitySize ? 240 : 170)
