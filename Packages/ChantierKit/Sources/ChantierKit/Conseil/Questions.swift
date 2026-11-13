@@ -97,16 +97,17 @@ extension Village {
         elements.append(Element(itemID: Self.posts.last { $0.kind == .builder }!.id, level: 1, count: 1, maxLevel: 1, baseLevel: 1))
         var ouvriers = workers
         ouvriers[.builder, default: 0] += 1
-        return Village(date: date, townHall: townHall, elements: elements, workers: ouvriers, unknown: unknown, status: status)
+        return Village(date: date, townHall: townHall, elements: elements, workers: ouvriers, unknown: unknown, status: status, equipped: equipped)
     }
 
-    init(date: Date, townHall: Int, elements: [Element], workers: [WorkerKind: Int], unknown: [ExportEntry], status: VillageStatus) {
+    init(date: Date, townHall: Int, elements: [Element], workers: [WorkerKind: Int], unknown: [ExportEntry], status: VillageStatus, equipped: Set<Int> = []) {
         self.date = date
         self.townHall = townHall
         self.elements = elements
         self.workers = workers
         self.unknown = unknown
         self.status = status
+        self.equipped = equipped
     }
 }
 

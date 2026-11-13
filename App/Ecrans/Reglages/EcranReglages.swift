@@ -12,7 +12,7 @@ struct EcranReglages: View {
     /// Débogage seulement : `-apropos 1` ouvre « À propos » au lancement (captures).
     private static func cheminDeCapture() -> [String] {
         #if DEBUG
-        return UserDefaults.standard.bool(forKey: "apropos") ? ["apropos"] : []
+        return UserDefaults.standard.bool(forKey: "apropos") ? ["apropos"] : UserDefaults.standard.bool(forKey: "joueur") ? ["joueur"] : []
         #else
         return []
         #endif
@@ -47,7 +47,9 @@ struct EcranReglages: View {
             .font(Theme.Police.texte)
             .scrollContentBackground(.hidden)
             .pageChantier()
-            .navigationDestination(for: String.self) { _ in EcranAPropos() }
+            .navigationDestination(for: String.self) { page in
+                if page == "joueur" { EcranJoueur() } else { EcranAPropos() }
+            }
             .navigationTitle("Réglages")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { fermer() } } }

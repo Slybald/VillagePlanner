@@ -16,7 +16,7 @@ import Foundation
 //  E3  la chaîne de niveaux restants la plus longue en durée ;  E4  l'identifiant.
 //  Un pas n'entre qu'une fois ses prérequis dans la file des ouvriers atteints (village ou pas déjà placé) ;
 //  sans quoi il attend, et passe en fin de file si rien ne les atteindra (la simulation le dira bloqué, S7).
-//  Labo, familiers, forge : épinglés, puis l'ordre de conseils.json, puis le moins cher (`CostKey`), puis l'identifiant.
+//  Labo, familiers, forge : épinglés, puis (forge seulement, si l'API a été lue) les équipements équipés, puis l'ordre de conseils.json, puis le moins cher (`CostKey`), puis l'identifiant.
 //  Les niveaux d'un même élément se suivent toujours dans l'ordre. Rien d'« en cours » n'est placé : c'est déjà lancé.
 
 /// L'orientation du profil de jeu.
@@ -96,7 +96,7 @@ public func priorities(of steps: [UpgradeStep], in village: Village, reference: 
                        advice: AdviceData, profile: Profile) -> [WorkerKind: [PrioritizedStep]] {
     Dictionary(uniqueKeysWithValues: WorkerKind.allCases.map { worker in
         (worker, worker == .builder ? builderQueue(steps, village, reference, advice, profile)
-                                    : queue(for: worker, steps.filter { $0.worker == worker }, advice, profile))
+                                    : queue(for: worker, steps.filter { $0.worker == worker }, advice, profile, equipped: village.equipped))
     })
 }
 
@@ -140,7 +140,7 @@ private func identity(_ s: UpgradeStep) -> (Int, Int, Int, Int, Double) {
 // MARK: - Labo, familiers, forge
 
 private func queue(for worker: WorkerKind, _ steps: [UpgradeStep], _ advice: AdviceData,
-                   _ profile: Profile) -> [PrioritizedStep] {
+                   _ profile: Profile, equipped: Set<Int>) -> [PrioritizedStep] {
     let list: AdviceList.Name? = switch worker {
     case .laboratory: .laboratory
     case .petHouse: .pets
@@ -157,6 +157,9 @@ private func queue(for worker: WorkerKind, _ steps: [UpgradeStep], _ advice: Adv
             let (x, y) = (pending[a].steps[0], pending[b].steps[0])
             let (px, py) = (profile.pinned.contains(x.itemID), profile.pinned.contains(y.itemID))
             if px != py { return px }
+            // Forge (T30) : les équipements équipés d'abord, après les épingles ; le reste de l'ordre ne change pas.
+            let (qx, qy) = (equipped.contains(x.itemID), equipped.contains(y.itemID))
+            if worker == .blacksmith, qx != qy { return qx }
             let (rx, ry) = (reason(x).within, reason(y).within)
             if rx != ry { return rx < ry }
             let (cx, cy) = (CostKey(x.costs), CostKey(y.costs))

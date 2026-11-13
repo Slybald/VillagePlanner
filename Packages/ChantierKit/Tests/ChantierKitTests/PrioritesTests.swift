@@ -39,17 +39,18 @@ enum Prio {
 
     /// Le village à l'HDV 3 ; `maxTownHall` : le plus haut HDV de la référence.
     static func village(_ items: [ReferenceItem], _ sections: [String: [ExportEntry]],
-                        maxTownHall: Int = 3) -> (Village, ReferenceData) {
+                        maxTownHall: Int = 3, joueur: EquipementsJoueur? = nil) -> (Village, ReferenceData) {
         let reference = ReferenceData(items: [thItem] + items, maxTownHall: maxTownHall)
         var s = sections
         s["buildings", default: []].insert(e(th, 3), at: 0)
         let export = VillageExport(tag: "#2PP", date: Rest.date, sections: s, idLists: [:], boosts: [:], warnings: [])
-        return (Village(export: export, reference: reference), reference)
+        return (Village(export: export, reference: reference, joueur: joueur), reference)
     }
 
     static func queues(_ items: [ReferenceItem], _ sections: [String: [ExportEntry]], profile: Profile = Profile(),
-                       advice: AdviceData = advice, now: Date = Rest.date) -> [WorkerKind: [PrioritizedStep]] {
-        let (v, r) = village(items, sections)
+                       advice: AdviceData = advice, now: Date = Rest.date,
+                       joueur: EquipementsJoueur? = nil) -> [WorkerKind: [PrioritizedStep]] {
+        let (v, r) = village(items, sections, joueur: joueur)
         return priorities(of: remainingSteps(of: v, reference: r, profile: profile, now: now),
                           in: v, reference: r, advice: advice, profile: profile)
     }
@@ -320,6 +321,58 @@ enum Prio {
         let q = P.queues(items, s)
         #expect(P.labels(q[.petHouse]) == ["pet22", "pet2"])
         #expect(P.labels(q[.blacksmith]) == ["gear23", "gear3"])
+    }
+
+    // MARK: - Équipements équipés (T30)
+
+    static let forge = [P.item(P.gear, .equipment, section: "equipment", worker: .blacksmith, resource: .shinyOre, [P.lv(nil, 0), P.lv(1, 0), P.lv(1, 0)]),
+                        P.item(P.gear2, .equipment, section: "equipment", worker: .blacksmith, resource: .shinyOre, [P.lv(nil, 0), P.lv(9, 0), P.lv(9, 0)])]
+
+    @Test func forge_equipesEnTete_sansChangerLeReste() {
+        let s = ["equipment": [P.e(P.gear, 2), P.e(P.gear2, 2)]]
+        #expect(P.labels(P.queues(Self.forge, s)[.blacksmith]) == ["gear23", "gear3"])
+        let q = P.queues(Self.forge, s, joueur: EquipementsJoueur(equipes: [P.gear]))[.blacksmith]
+        #expect(P.labels(q) == ["gear3", "gear23"])                                  // la liste des conseils met gear2 devant : l'équipé la double
+        // Un épinglé reste devant un équipé (E1 d'abord).
+        let epingle = P.queues(Self.forge, s, profile: Profile(pinned: [P.gear2]), joueur: EquipementsJoueur(equipes: [P.gear]))[.blacksmith]
+        #expect(P.labels(epingle) == ["gear23", "gear3"])
+    }
+
+    @Test func forge_rienNeChangeSansDonneeJoueur_etLesOuvriersNeBougentPas() {
+        let s = ["equipment": [P.e(P.gear, 2), P.e(P.gear2, 2)]]
+        let sans = P.queues(Self.forge, s), vide = P.queues(Self.forge, s, joueur: EquipementsJoueur())
+        #expect(sans == vide)
+        let avec = P.queues(Self.forge, s, joueur: EquipementsJoueur(equipes: [P.gear2]))
+        #expect(avec[.builder] == sans[.builder] && avec[.laboratory] == sans[.laboratory] && avec[.petHouse] == sans[.petHouse])
+    }
+
+    @Test func v4_lApiDitPossede_remplaceLaRegle() {
+        // gear est au niveau 1 dans l'export : V4 le tient pour non possédé, sauf si l'API dit qu'on l'a.
+        let s = ["equipment": [P.e(P.gear, 1)]]
+        #expect(P.queues(Self.forge, s)[.blacksmith]!.isEmpty)
+        #expect(P.labels(P.queues(Self.forge, s, joueur: EquipementsJoueur(possedes: [P.gear]))[.blacksmith]) == ["gear2", "gear3"])
+        // Un autre équipement possédé ne rend pas celui-ci possédé.
+        #expect(P.queues(Self.forge, s, joueur: EquipementsJoueur(possedes: [P.gear2]))[.blacksmith]!.isEmpty)
+    }
+
+    @Test func v4_lApiNeFaitPasExisterUnEquipementAuNiveauZero() {
+        let s = ["equipment": [P.e(P.gear, 0)]]
+        let (v, _) = P.village(Self.forge, s, joueur: EquipementsJoueur(possedes: [P.gear]))
+        #expect(!v.elements.contains { $0.itemID == P.gear })
+    }
+
+    @Test func exempleReelHdv16_forgeEquipesEnTete_lesAutresGardentLeurOrdre() {
+        let forge = Réel.queues[.blacksmith]!
+        let equipes = Set(forge.map(\.step.itemID).reversed().prefix(2))             // les deux derniers de la file : jamais en tête
+        let v = Village(export: Réel.export, reference: Réel.reference, joueur: EquipementsJoueur(equipes: equipes))
+        let steps = remainingSteps(of: v, reference: Réel.reference, profile: Profile(), now: Réel.export.date)
+        let q = priorities(of: steps, in: v, reference: Réel.reference, advice: Réel.advice, profile: Profile())
+        let f = q[.blacksmith]!
+        let tete = f.prefix { equipes.contains($0.step.itemID) }
+        #expect(!tete.isEmpty && f.dropFirst(tete.count).allSatisfy { !equipes.contains($0.step.itemID) })   // tous devant, aucun derrière
+        // Les non-équipés gardent leur ordre d'avant.
+        #expect(f.filter { !equipes.contains($0.step.itemID) } == forge.filter { !equipes.contains($0.step.itemID) })
+        #expect(q[.builder] == Réel.queues[.builder] && q[.laboratory] == Réel.queues[.laboratory])
     }
 
     @Test func leMoinsCher_ressourceLaPlusRareDAbord_sansCoutZero_sansNiveauEnDernier() {
