@@ -7,7 +7,7 @@ import Testing
 @Suite struct ProfilStoreTests {
     /// Des préférences neuves pour chaque test.
     private func neuf() -> (ProfilStore, UserDefaults) {
-        let d = UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!
+        let d = PreferencesDeTest.neuves()
         return (ProfilStore(defaults: d), d)
     }
 

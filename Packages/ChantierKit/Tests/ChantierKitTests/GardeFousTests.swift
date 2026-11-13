@@ -394,7 +394,7 @@ struct BancConseiller {
     let store: PreferencesConseil
 
     init(cle: String? = BancConseiller.cle, coffre: (any SecretStore)? = nil, budget: Budget = Budget(), reponses: [Reponse]) {
-        let defaults = UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!
+        let defaults = PreferencesDeTest.neuves()
         let budgetStore = BudgetStore(defaults: defaults)
         budgetStore.save(budget)
         transport = FauxTransport(reponses)
