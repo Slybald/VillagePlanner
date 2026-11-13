@@ -315,8 +315,11 @@ func diffMini(_ a: String, _ b: String, _ ref: ReferenceData = Mini.reference) t
         // Identique à un calcul tout neuf avec la nouvelle référence.
         let neuf = DossierTemporaire(); defer { neuf.supprimer() }
         try HistoryStore(root: neuf.url).add(photoMini(1_000, canonMini(1) + "," + canonMini(3)), context: ctxMini(v2))
-        #expect(listing2 == HistoryStore(root: neuf.url).refresh(ctxMini(v2)))
-        #expect(try Data(contentsOf: h.indexURL) == Data(contentsOf: HistoryStore(root: neuf.url).indexURL))
+        // (Les dates des fichiers diffèrent d'un dossier à l'autre : on compare le contenu calculé.)
+        let temoin = HistoryStore(root: neuf.url).refresh(ctxMini(v2)).entries
+        #expect(listing2.entries.map(\.total) == temoin.map(\.total))
+        #expect(listing2.entries.map(\.categories) == temoin.map(\.categories))
+        #expect(listing2.entries.map(\.capTimestamp) == temoin.map(\.capTimestamp))
     }
 
     @Test func changementDeProfilRecalculeAussi() throws {
@@ -404,5 +407,59 @@ func diffMini(_ a: String, _ b: String, _ ref: ReferenceData = Mini.reference) t
         #expect(t.capShift != nil)
         #expect(t.totalChange != nil)
         #expect(h.difference(from: premiere, to: seconde, context: ctx) == t)
+    }
+
+    // MARK: - Corrections de relecture
+
+    func refFusion() -> ReferenceData {
+        ReferenceData(items: [
+            Mini.item(Mini.th, "buildings", .economy, counts: [0, 1, 1, 1], max: [0, 1, 2, 3], weights: [0, 100, 200]),
+            Mini.item(1000008, "buildings", .defenses, counts: [0, 1, 4, 4], max: [0, 1, 2, 3], weights: [10, 20, 30]),
+            Mini.item(1000085, "buildings", .defenses, counts: [0, 0, 0, 1], max: [0, 0, 0, 2], weights: [40, 50],
+                      mergedFrom: [Requirement(itemID: 1000008, level: 3), Requirement(itemID: 1000008, level: 3)]),
+        ], maxTownHall: 3)
+    }
+
+    @Test func fusionNInventePasUneAmeliorationLancee() throws {
+        let ricochet = ##",{"data":1000085,"lvl":1}"##
+        let d = try diffMini(photoMini(1_000, canonMini(3, cnt: 3) + "," + canonMini(2, timer: "500")),
+                             photoMini(2_000, canonMini(3) + "," + canonMini(2, timer: "400") + ricochet), refFusion())
+        #expect(d.started.isEmpty)
+        #expect(d.finished.isEmpty)
+    }
+
+    @Test func fusionNeMasquePasUnVraiTermine() throws {
+        let ricochet = ##",{"data":1000085,"lvl":1}"##
+        // Le canon 2 en cours finit (niveau 3), deux canons au repos sont consommés par la fusion.
+        let d = try diffMini(photoMini(1_000, canonMini(3, cnt: 2) + "," + canonMini(2, timer: "500")),
+                             photoMini(2_000, canonMini(3) + ricochet), refFusion())
+        #expect(d.finished == [PhotoDiff.ItemCount(itemID: 1000008, count: 1)])
+        #expect(d.started.isEmpty)
+    }
+
+    @Test func photoDevenueIllisibleApresIndexationEstSignalee() throws {
+        let dossier = DossierTemporaire(); defer { dossier.supprimer() }
+        let h = HistoryStore(root: dossier.url), ctx = ctxMini()
+        try remplir(h, [1_000, 2_000], ctx)
+        let s = Snapshot(date: Date(timeIntervalSince1970: 2_000))
+        let url = h.photos.directory.appending(path: s.fileName)
+        try Data("abîmé".utf8).write(to: url)
+        let listing = h.refresh(ctx)
+        #expect(listing.unreadable == [s])
+        #expect(listing.entries.map(\.timestamp) == [1_000])
+        #expect(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test func versionDuCalculDansLaCleEtResumesPerimesRecalcules() throws {
+        let dossier = DossierTemporaire(); defer { dossier.supprimer() }
+        let h = HistoryStore(root: dossier.url), ctx = ctxMini()
+        #expect(ctx.key.hasPrefix("calcul\(HistoryContext.calculationVersion)|"))
+        try remplir(h, [1_000], ctx)
+        let bon = h.refresh(ctx)
+        var index = try JSONDecoder().decode(HistoryIndex.self, from: Data(contentsOf: h.indexURL))
+        index.key = index.key.replacingOccurrences(of: "calcul\(HistoryContext.calculationVersion)|", with: "calcul0|")
+        try JSONEncoder().encode(index).write(to: h.indexURL)
+        #expect(h.refresh(ctx) == bon)
+        #expect(try JSONDecoder().decode(HistoryIndex.self, from: Data(contentsOf: h.indexURL)).key == ctx.key)
     }
 }

@@ -54,13 +54,31 @@ public struct PhotoDiff: Sendable, Equatable {
         for id in Set(before.keys).union(after.keys).sorted() {
             let (x, y) = (before[id] ?? [], after[id] ?? [])
             var g = 0, s = 0, f = 0
-            // shortcut: après une fusion, les exemplaires consommés sont inconnus, on compare par rang ; à revoir si l ecran veut le détail.
-            for i in 0..<y.count {                         // les exemplaires disparus (i >= y.count) sont ignorés
-                let prev = i < x.count ? x[i] : Unit(level: 0, upgrading: false)
-                g += max(0, y[i].level - prev.level)
-                let done = prev.upgrading && y[i].level > prev.level
-                if done { f += 1 }
-                if y[i].upgrading && !(prev.upgrading && y[i].level == prev.level) { s += 1 }
+            // Les niveaux gagnés se comparent par rang (une perte est ignorée : fusion).
+            for i in 0..<y.count { g += max(0, y[i].level - (i < x.count ? x[i].level : 0)) }
+            // Lancées et terminées : on retire d'abord ce qui n'a pas bougé (même niveau, même état). Ce qui reste du
+            // côté « après » est nouveau ; une amélioration de « avant » qui n'a plus d'équivalent est terminée si un
+            // exemplaire plus haut est apparu. Une fusion qui supprime des exemplaires ne crée donc ni lancée ni terminée.
+            var left = y
+            var kept: [Unit] = []                           // exemplaires retrouvés tels quels
+            func retire(_ u: Unit) -> Bool {
+                guard let k = left.firstIndex(where: { $0.level == u.level && $0.upgrading == u.upgrading }) else { return false }
+                kept.append(left.remove(at: k))
+                return true
+            }
+            var gone: [Unit] = []                           // exemplaires de « avant » sans équivalent
+            for u in x where !retire(u) { gone.append(u) }
+            s = left.filter(\.upgrading).count
+            for u in gone.filter(\.upgrading).sorted(by: { $0.level < $1.level }) {
+                func prends(_ pool: inout [Unit]) -> Bool {
+                    guard let k = pool.indices.filter({ pool[$0].level > u.level }).min(by: { pool[$0].level < pool[$1].level })
+                    else { return false }
+                    pool.remove(at: k)
+                    return true
+                }
+                // Une amélioration en cours ne se fait pas fusionner : si des exemplaires ont disparu (fusion), celui
+                // qui vient de finir peut se cacher parmi les exemplaires au repos retrouvés.
+                if prends(&left) || (x.count > y.count && prends(&kept)) { f += 1 }
             }
             if g > 0 { gained.append(ItemCount(itemID: id, count: g)) }
             if s > 0 { started.append(ItemCount(itemID: id, count: s)) }

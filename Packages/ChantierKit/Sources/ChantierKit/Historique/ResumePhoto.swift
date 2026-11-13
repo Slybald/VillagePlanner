@@ -16,13 +16,17 @@ public struct HistoryContext: Sendable {
         self.profile = profile
     }
 
+    /// À augmenter à chaque changement du calcul d'un résumé (avancement, plan, cap) : les index écrits par une
+    /// version précédente de l'app sont alors recalculés.
+    public static let calculationVersion = 1
+
     /// Une empreinte de la version : un index écrit avec une autre empreinte est recalculé.
     var key: String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let profile = (try? encoder.encode(profile)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let source = reference.source
-        return "\(reference.format)|\(source.commit)|\(source.date)|\(reference.maxTownHall)|\(reference.items.count)"
+        return "calcul\(Self.calculationVersion)|\(reference.format)|\(source.commit)|\(source.date)|\(reference.maxTownHall)|\(reference.items.count)"
             + "|\(advice.format)|\(advice.date)|\(profile)"
     }
 }
@@ -45,11 +49,16 @@ public struct PhotoSummary: Sendable, Equatable, Codable, Identifiable {
     /// où on la trace). nil : rien à faire après la photo, ou HDV inconnu.
     public let capTimestamp: Int?
 
+    /// Taille et date de modification (millisecondes) du fichier au moment du calcul : si l'un change, la photo
+    /// est relue, car elle a pu devenir illisible.
+    let fileStamp: FileStamp
+
     public var id: Int { timestamp }
     public var date: Date { Date(timeIntervalSince1970: TimeInterval(timestamp)) }
     public var cap: Date? { capTimestamp.map { Date(timeIntervalSince1970: TimeInterval($0)) } }
 
-    init(snapshot: Snapshot, export: VillageExport, context: HistoryContext) {
+    init(snapshot: Snapshot, export: VillageExport, stamp: FileStamp, context: HistoryContext) {
+        fileStamp = stamp
         let village = Village(export: export, reference: context.reference)
         let report = progress(of: village, reference: context.reference)
         timestamp = Int(snapshot.date.timeIntervalSince1970)
@@ -74,4 +83,16 @@ struct HistoryIndex: Codable, Equatable {
     var format = HistoryIndex.currentFormat
     var key: String
     var entries: [PhotoSummary]
+}
+
+struct FileStamp: Codable, Equatable, Sendable {
+    let size: Int
+    let modified: Int
+
+    init?(of url: URL) {
+        guard let a = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = (a[.size] as? NSNumber)?.intValue, let date = a[.modificationDate] as? Date else { return nil }
+        self.size = size
+        modified = Int((date.timeIntervalSince1970 * 1000).rounded())
+    }
 }

@@ -30,15 +30,20 @@ public struct HistoryStore: Sendable {
         let old = readIndex()
         let reusable = old?.key == context.key ? old?.entries ?? [] : []
         let wanted = Set(snapshots.map { Int($0.date.timeIntervalSince1970) })
-        var entries = reusable.filter { wanted.contains($0.timestamp) }
+        // Un fichier dont la taille ou la date a changé depuis le calcul est relu (il a pu s'abîmer).
+        var entries = reusable.filter { entry in
+            wanted.contains(entry.timestamp)
+                && FileStamp(of: store.directory.appending(path: Snapshot(date: entry.date).fileName)) == entry.fileStamp
+        }
         let known = Set(entries.map(\.timestamp))
         let todo = snapshots.filter { !known.contains(Int($0.date.timeIntervalSince1970)) }
 
         let results = Résultats<PhotoSummary>(count: todo.count)
         // Les plans coûtent : une reconstruction complète se fait sur tous les cœurs.
         DispatchQueue.concurrentPerform(iterations: todo.count) { i in
-            guard let text = store.text(of: todo[i]), let export = try? VillageExport.parse(text) else { return }
-            results.set(i, PhotoSummary(snapshot: todo[i], export: export, context: context))
+            let stamp = FileStamp(of: store.directory.appending(path: todo[i].fileName))
+            guard let stamp, let text = store.text(of: todo[i]), let export = try? VillageExport.parse(text) else { return }
+            results.set(i, PhotoSummary(snapshot: todo[i], export: export, stamp: stamp, context: context))
         }
         let computed = results.values
         let unreadable = zip(todo, computed).filter { $1 == nil }.map(\.0)
