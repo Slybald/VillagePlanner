@@ -7,15 +7,23 @@ struct HistoriqueAffiche: Sendable {
     let listing: HistoryStore.Listing
     /// Le ticket de chaque photo (par son `timestamp`) ; absent pour la première.
     let tickets: [Int: PhotoDiff]
+    /// L'occupation des postes depuis la photo d'avant (par `timestamp`) ; absente pour la première photo.
+    let occupations: [Int: Occupation]
+    /// Le taux des 30 derniers jours ; nil avant trois photos sur sept jours.
+    let rythme: Rhythm?
 
     /// Lecture complète : à faire hors de l'acteur principal (les plans se calculent).
-    nonisolated static func charger(_ store: HistoryStore, _ contexte: HistoryContext) -> HistoriqueAffiche {
+    nonisolated static func charger(_ store: HistoryStore, _ contexte: HistoryContext,
+                                    occupation contexteOccupation: HistoryContext) -> HistoriqueAffiche {
         let listing = store.refresh(contexte)
         var tickets: [Int: PhotoDiff] = [:]
         for e in listing.entries.dropFirst() {
             tickets[e.timestamp] = store.ticket(for: Snapshot(date: e.date), context: contexte)
         }
-        return HistoriqueAffiche(listing: listing, tickets: tickets)
+        let paires = store.occupations(context: contexteOccupation)
+        return HistoriqueAffiche(listing: listing, tickets: tickets,
+                                 occupations: Dictionary(paires.map { (Int($0.to.timeIntervalSince1970), $0) }) { $1 },
+                                 rythme: Rhythm.measure(paires))
     }
 }
 
@@ -61,8 +69,8 @@ struct EcranHistorique: View {
     }
 
     private func recharger() async {
-        guard let source = modele.sourceHistorique else { return }
-        charge = await Task.detached { HistoriqueAffiche.charger(source.store, source.contexte) }.value
+        guard let source = modele.sourceHistorique, let occupation = modele.sourceOccupation else { return }
+        charge = await Task.detached { HistoriqueAffiche.charger(source.store, source.contexte, occupation: occupation.contexte) }.value
         #if DEBUG
         // Captures : `-historique-supprimer 1` ouvre la confirmation sur la troisième photo en partant de la fin.
         if UserDefaults.standard.bool(forKey: "historique-supprimer"), aSupprimer == nil,
@@ -85,12 +93,18 @@ struct EcranHistorique: View {
         } else {
             ExplicationHistorique(nombre: charge.listing.entries.count)
         }
+        if let rythme = charge.rythme {
+            CarteOccupation(rythme: rythme)
+        } else if let derniere = charge.occupations.values.max(by: { $0.to < $1.to }) {
+            CarteOccupation(derniere: derniere)
+        }
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
             Text("Photos").etiquetteChantier()
             ForEach(lignes(charge)) { ligne in
                 switch ligne {
                 case .photo(let entree):
-                    LignePhoto(entree: entree, ticket: charge.tickets[entree.timestamp], reference: reference) {
+                    LignePhoto(entree: entree, ticket: charge.tickets[entree.timestamp], occupation: charge.occupations[entree.timestamp],
+                               reference: reference) {
                         aSupprimer = Snapshot(date: entree.date)
                     }
                 case .illisible(let photo):
@@ -212,6 +226,7 @@ struct ExplicationHistorique: View {
 struct LignePhoto: View {
     let entree: PhotoSummary
     let ticket: PhotoDiff?
+    let occupation: Occupation?
     let reference: ReferenceData
     let supprimer: () -> Void
 
@@ -258,6 +273,7 @@ struct LignePhoto: View {
         }
         lignes.append(termines)
         if let cap = TexteTicket.cap(ticket.capShift) { lignes.append(cap) }
+        if let ouvriers = occupation?.post(.builder) { lignes.append("Ouvriers au travail : " + TexteOccupation.taux(ouvriers)) }
         return lignes
     }
 }

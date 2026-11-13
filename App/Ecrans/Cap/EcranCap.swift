@@ -129,6 +129,10 @@ struct EcranCap: View {
             Terrain(hdv: village.townHall, autour: affiche.plan.map(environs) ?? [])
             if let plan = affiche.plan {
                 capTouchable(plan)
+                if let rythme = plan.rythme, let tot = plan.plan.cap, let rythmique = plan.planRythme?.cap {
+                    CarteRythme(auPlusTot: tot, aTonRythme: rythmique, maintenant: plan.maintenant, fuseau: plan.fuseau,
+                                rythme: rythme)
+                }
             } else {
                 GrandeDate(surtitre: "HDV \(village.townHall)",
                            date: "\(Int((total * 100).rounded()))\u{202F}%",

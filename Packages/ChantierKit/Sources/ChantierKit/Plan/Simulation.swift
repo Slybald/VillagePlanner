@@ -14,7 +14,13 @@ import Foundation
 //  S5  les réductions du profil s'appliquent aux pas lancés avant leur date de fin ;
 //  S6  assistants (Assistants.swift) : ils raccourcissent des pas déjà lancés, leurs services sont appliqués
 //      aux événements ; `finish(_:start:seconds:)` reste la fin « sans assistant » ;
-//  S7  la simulation s'arrête quand plus rien ne tourne ; ce qui n'a jamais été lancé sort dans `blocked`.
+//  S7  la simulation s'arrête quand plus rien ne tourne ; ce qui n'a jamais été lancé sort dans `blocked` ;
+//  O7  (Occupation.swift) « à ton rythme » : un couloir qui vient de finir une amélioration reste indisponible
+//      `(1 − ρ) / ρ` fois la durée de cette amélioration (sa durée complète pour un minuteur de la photo), puis
+//      relance : le poste travaille alors une part `ρ` du temps entre deux lancements. Le pas est choisi quand le
+//      couloir redevient disponible (priorités et prérequis de ce moment-là), jamais pendant les heures sans jeu (S4) ;
+//      un minuteur de la photo déjà fini à `now` n'attend rien (S0) ; la dernière attente ne retarde pas le cap ;
+//      sans rythme, rien de tout cela n'existe.
 // Décisions :
 //  - minuteur illisible (fin inconnue) : le poste est tenu occupé jusqu'à `photo + durée complète du niveau`,
 //    la fin la plus tardive possible ; `Plan.unknownTimers` les compte ;
@@ -112,6 +118,9 @@ let postsWorkWhileUpgrading = true
 /// Postes simulés, dans l'ordre où ils sont examinés à chaque événement.
 private let simulatedWorkers: [WorkerKind] = [.builder, .laboratory, .petHouse]
 
+/// Un poste « presque jamais occupé » ferait des attentes sans fin : le taux n'est jamais pris sous ce plancher.
+private let minimumRate = 0.05
+
 /// La fin d'un pas lancé à `start` pour `seconds` secondes, sans assistant. S6 : un assistant n'est affecté qu'à un
 /// pas déjà en cours (le plus long du poste à l'instant où il est libre) ; Assistants.swift rapproche donc la fin
 /// après coup, pas ici.
@@ -121,13 +130,13 @@ func finish(_ step: UpgradeStep, start: Date, seconds: Int) -> Date {
 
 /// `now` est toujours un paramètre : aucun calcul ne lit l'horloge. `boosts` : ceux de l'export, pour dire si une
 /// potion était active dans la photo. `assistants` : ceux de l'export (`Assistants(export:reference:)`) ; sans eux,
-/// le plan ne change pas (S6).
+/// le plan ne change pas (S6). `rhythm` : le taux d'occupation mesuré (O7) ; nil, le plan « au plus tôt » de toujours.
 public func makePlan(for village: Village, reference: ReferenceData, advice: AdviceData,
                      profile: Profile, now: Date, boosts: [String: Int] = [:],
-                     assistants: Assistants = Assistants()) -> Plan {
+                     assistants: Assistants = Assistants(), rhythm: Rhythm? = nil) -> Plan {
     let all = remainingSteps(of: village, reference: reference, profile: profile, now: now)
     let queues = priorities(of: all, in: village, reference: reference, advice: advice, profile: profile)
-    var sim = Simulation(village: village, reference: reference, profile: profile, assistants: assistants)
+    var sim = Simulation(village: village, reference: reference, profile: profile, assistants: assistants, rhythm: rhythm)
     // Les minuteurs dans un ordre qui ne dépend pas de celui de l'export (couloirs reproductibles).
     func key(_ s: UpgradeStep) -> (Double, Int, Int, Int) {
         guard case .inProgress(let ends) = s.status else { return (0, 0, 0, 0) }
@@ -171,9 +180,21 @@ struct Simulation {
     var helperServices: [HelperService] = []
     /// Places (dans `scheduled`) des minuteurs illisibles : leur fin est inventée, un assistant ne la raccourcit pas.
     var unknownSlots: Set<Int> = []
+    /// O7 : `(1 − ρ) / ρ` par poste (absent : pas d'attente), la date avant laquelle un couloir libre ne relance pas,
+    /// et la date du calcul.
+    var pauseFactor: [WorkerKind: Double] = [:]
+    var laneFree: [WorkerKind: [Int: Date]] = [:]
+    var now = Date.distantPast
 
-    init(village: Village, reference: ReferenceData, profile: Profile, assistants: Assistants = Assistants()) {
+    init(village: Village, reference: ReferenceData, profile: Profile, assistants: Assistants = Assistants(),
+         rhythm: Rhythm? = nil) {
         self.reference = reference
+        if let rhythm {
+            for worker in simulatedWorkers {
+                let rho = min(max(rhythm.rate(for: worker), minimumRate), 1)
+                if rho < 1 { pauseFactor[worker] = (1 - rho) / rho }
+            }
+        }
         self.profile = profile
         photo = village.date
         crew = HelperRuntime.crew(assistants, reference: reference, photo: village.date)
@@ -261,10 +282,11 @@ struct Simulation {
         done[job.copy] == job.step.level - 1 && !busy[job.copy] && unmet(job.step) == nil
     }
 
-    mutating func launch(_ job: Job, at start: Date, end: Date, costs: [ResourceAmount], percent: Int) {
+    mutating func launch(_ job: Job, at start: Date, end: Date, costs: [ResourceAmount], percent: Int, lane wanted: Int? = nil) {
         let worker = job.step.worker
         var taken = lanes[worker, default: []]
-        let lane = taken.firstIndex(of: false) ?? { taken.append(false); return taken.count - 1 }()
+        let lane = wanted ?? taken.firstIndex(of: false) ?? { taken.append(false); return taken.count - 1 }()
+        if lane == taken.count { taken.append(false) }
         taken[lane] = true
         lanes[worker] = taken
         running.append(Running(job: job, lane: lane, end: end, slot: scheduled.count))
@@ -291,6 +313,15 @@ struct Simulation {
         let id = r.job.step.itemID, level = r.job.step.level
         done[r.job.copy] = level
         busy[r.job.copy] = false
+        // O7 : le couloir attend avant de relancer, proportionnellement à la durée complète de ce qu'il vient de faire ;
+        // un minuteur de la photo fini avant `now` n'attend rien : son poste est déjà libre (S0).
+        if let factor = pauseFactor[r.job.step.worker] {
+            let s = scheduled[r.slot]
+            if s.end > now {
+                let full = s.fromSnapshot ? r.job.step.baseDuration : Int(s.end.timeIntervalSince(s.start).rounded())
+                laneFree[r.job.step.worker, default: [:]][r.lane] = r.end.addingTimeInterval(Double(full) * factor)
+            }
+        }
         levels[id, default: [:]][level - 1, default: 0] -= 1
         levels[id, default: [:]][level, default: 0] += 1
     }
@@ -298,6 +329,7 @@ struct Simulation {
     /// Le déroulé : S0 (départ à `now`), S2 à chaque événement, S4, S7 (arrêt quand plus rien ne tourne).
     /// Chaque événement termine au moins un pas : la boucle finit toujours.
     mutating func run(from now: Date) {
+        self.now = now
         func release(_ d: Date) -> Date { profile.quietHours?.release(d) ?? d }
         var t = release(now)                                                  // S0, S4
         while true {
@@ -310,7 +342,8 @@ struct Simulation {
                 again = running.contains { $0.end <= t }
             }
             bindHelpers(at: t)                                                // S6
-            guard let next = (crew.isEmpty ? running.map(\.end) : running.map(\.end) + helperWakes(after: t)).min() else { break }   // S7
+            let wakes = (crew.isEmpty ? [] : helperWakes(after: t)) + pauseEnds(after: t)
+            guard let next = (running.map(\.end) + wakes).min() else { break }   // S7
             t = release(max(next, t))
         }
     }
@@ -325,20 +358,40 @@ struct Simulation {
         if ready > slots, free > slots { heroLimitApplied = true }
     }
 
+    /// O7 : les dates où un couloir libre redevient disponible, pour un poste dont la file n'est pas vide : un événement.
+    func pauseEnds(after t: Date) -> [Date] {
+        laneFree.flatMap { worker, dates in
+            (queues[worker]?.isEmpty ?? true) ? [] : dates.filter { !(lanes[worker]?[$0.key] ?? false) }.values.filter { $0 > t }
+        }
+    }
+
+    /// O7 : le couloir libre et disponible à `t` (le plus bas), nil quand tous les couloirs libres attendent encore.
+    func availableLane(_ worker: WorkerKind, at t: Date) -> Int? {
+        let taken = lanes[worker, default: []]
+        let free = taken.indices.filter { !taken[$0] } + (taken.count < capacity(worker) ? [taken.count] : [])
+        return free.first { (laneFree[worker]?[$0] ?? .distantPast) <= t }
+    }
+
     /// S2 : tant que le poste a un couloir libre, il prend le premier pas lançable de sa file.
     mutating func assign(_ worker: WorkerKind, at t: Date) {
         while running.filter({ $0.job.step.worker == worker }).count < capacity(worker) {
+            var lane: Int?
+            if !laneFree.isEmpty {                                            // O7 : le couloir attend encore
+                guard let free = availableLane(worker, at: t) else { return }
+                lane = free
+            }
             let heroes = heroesRunning
             guard let i = queues[worker]?.firstIndex(where: { job in
                 ready(job) && (job.step.category != .heroes || heroes < profile.heroLimit ?? .max)
             }) else { return }
             let job = queues[worker]!.remove(at: i)
+            if let lane { laneFree[worker]?[lane] = nil }
             let percent = profile.reductionPercent(for: worker, at: t)        // S5
             let seconds = Profile.reduced(job.step.baseDuration, byPercent: percent)
             let costs = job.step.baseCosts.map {
                 ResourceAmount(resource: $0.resource, amount: Profile.reduced($0.amount, byPercent: percent))
             }
-            launch(job, at: t, end: finish(job.step, start: t, seconds: seconds), costs: costs, percent: percent)
+            launch(job, at: t, end: finish(job.step, start: t, seconds: seconds), costs: costs, percent: percent, lane: lane)
         }
     }
 
