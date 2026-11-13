@@ -16,7 +16,7 @@ import Foundation
 //  O6  le rythme : les photos des 30 jours qui précèdent la plus récente ; rien avant trois photos couvrant au moins
 //      sept jours ;
 //  O7  dans la simulation, un poste à `ρ` d'occupation attend `(1 − ρ) / ρ` fois la durée d'une amélioration avant de
-//      lancer la suivante ; sans rythme, rien ne change (voir Simulation.swift).
+//      lancer la suivante, deux jours au plus ; sans rythme, rien ne change (voir Simulation.swift).
 //
 // MÉTHODE (aussi dans la PR). Fenêtre = de la photo A à la photo B. Pour un poste de `n` ouvriers, le temps disponible
 // est `n × (fenêtre − heures sans jeu)`. Le temps occupé est la somme de :
@@ -90,7 +90,8 @@ public struct Occupation: Sendable, Equatable {
         }
     }
 
-    static let kinds: [WorkerKind] = [.builder, .laboratory, .petHouse]
+    /// Les postes qui ont une durée, dans l'ordre d'affichage (la forge n'en a pas).
+    public static let kinds: [WorkerKind] = [.builder, .laboratory, .petHouse]
 }
 
 // MARK: - Le calcul

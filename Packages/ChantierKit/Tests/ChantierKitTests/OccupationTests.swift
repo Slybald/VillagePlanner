@@ -340,9 +340,12 @@ enum Occ {
         #expect(spans(tard) == ["3 0→10", "4 100→140"])
     }
 
-    @Test func O7_lePlancherDuTaux_pasDAttenteSansFin() {
-        // Un poste jamais occupé (0 %) attend 19 fois la durée, pas l'infini.
-        #expect(spans(plan(Rhythm(rate: 0))) == ["3 0→20", "4 400→440"])
+    @Test func O7_lePlancherDuTauxEtLePlafondDAttente_pasDAttenteSansFin() {
+        // Un poste jamais occupé (0 %) vaut 5 % : 19 fois la durée, soit 380 h, ramenées au plafond de deux jours.
+        #expect(spans(plan(Rhythm(rate: 0))) == ["3 0→20", "4 68→108"])
+        // À 90 %, une amélioration de 20 h fait attendre 20 h / 9 = 2 h 13 (arrondi aux secondes : le niveau 4 part à h22).
+        let p = plan(Rhythm(rate: 0.9))
+        #expect(Int(p.steps.filter { $0.step.itemID == Occ.cannon }.last!.start.timeIntervalSince(O.t0)) == 20 * 3600 + 8000)
     }
 
     @Test func O7_lAttenteFinitHorsDesHeuresSansJeu_S4() {

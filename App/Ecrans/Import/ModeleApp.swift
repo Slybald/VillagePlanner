@@ -42,8 +42,12 @@ final class ModeleApp {
             guard pret, profil != oldValue else { return }   // rien d'écrit pendant l'init
             profilStore.save(profil)
             rafraichirPlan()
+            recalculerRythme()                               // les réductions et les heures sans jeu entrent dans la mesure
         }
     }
+    /// Le taux d'occupation des 30 derniers jours (T24) ; nil tant qu'il n'y a pas trois photos sur sept jours.
+    private(set) var rythme: Rhythm?
+    @ObservationIgnored private var calculRythme: Task<Void, Never>?
     @ObservationIgnored private var pret = false
     /// Les Réglages sont ouverts (feuille sur l'écran Cap).
     var reglagesOuverts = false
@@ -82,6 +86,7 @@ final class ModeleApp {
         // Débogage seulement : le fichier est importé dans un dossier neuf, sans trace entre deux lancements.
         // Plusieurs chemins séparés par « : » sont importés dans l'ordre (pour montrer un import refusé après un bon).
         let chemin = arguments.string(forKey: "importer-fichier")
+        // `-historique-calme 1` avec le précédent : une série où peu d'éléments montent (taux d'occupation vraisemblable).
         // `-historique-exemple <n>` : n photos tirées de l'exemple (les n − 1 premières écrites, la dernière importée,
         // pour voir son ticket), dans le même dossier jetable.
         let nExemple = arguments.integer(forKey: "historique-exemple")
@@ -110,7 +115,7 @@ final class ModeleApp {
         if arguments.bool(forKey: "demander") { demanderOuvert = true }
         if arguments.bool(forKey: "historique") { historiqueOuvert = true }
         if nExemple > 0 {
-            var textes = HistoriqueExemple.textes(nExemple)
+            var textes = HistoriqueExemple.textes(nExemple, calme: arguments.bool(forKey: "historique-calme"))
             texteExemple = textes.popLast()
             for t in textes { _ = try? store.save(t) }
             if arguments.bool(forKey: "historique-illisible") {     // une photo qui ne se relit pas, entre deux bonnes
@@ -139,6 +144,7 @@ final class ModeleApp {
         if let ecran = arguments.string(forKey: "ecran"), let demande = OngletApp(rawValue: ecran) { onglet = demande }
         rafraichirPressePapiers()
         pret = true
+        recalculerRythme()
     }
 
     // MARK: Import
@@ -156,6 +162,7 @@ final class ModeleApp {
                 monteesJouees = []
             }
             reglages.removeObject(forKey: Self.cleExemple)    // le premier vrai import efface l'exemple
+            recalculerRythme()
             onglet = .cap
             switch resultat {
             case .created(let photo) where photo != derniere.snapshot:
@@ -224,7 +231,8 @@ final class ModeleApp {
     private func plan(village: Village, export: VillageExport, reference: ReferenceData, estExemple: Bool) -> PlanAffiche? {
         guard village.status != .unknownTownHall else { return nil }
         return PlanAffiche(village: village, export: export, reference: reference, conseils: conseils, profil: profil,
-                           maintenant: PlanAffiche.horloge(village: village, estExemple: estExemple))
+                           maintenant: PlanAffiche.horloge(village: village, estExemple: estExemple),
+                           rythme: estExemple ? nil : rythme)
     }
 
     /// Ce qu'il faut pour recalculer le plan avec une variante (questions de l'écran Demander, T21).
@@ -248,6 +256,7 @@ final class ModeleApp {
         do { _ = try historique.delete(photo, context: contexte) } catch { return false }
         ticket = nil
         montees = [:]
+        recalculerRythme()
         if let derniere = store.latest() {
             affiche = calculer(derniere.export, photo: derniere.snapshot)
         } else {
@@ -262,6 +271,19 @@ final class ModeleApp {
     var maintenant: Date { affiche?.plan?.maintenant ?? Date() }
     /// Date de la dernière révision des conseils (ISO 8601, jour).
     var dateConseils: String { conseils.date }
+
+    /// Mesure le rythme sur les photos (hors de l'acteur principal : il faut relire les photos des 30 derniers jours)
+    /// puis recalcule le plan quand il change.
+    func recalculerRythme() {
+        calculRythme?.cancel()
+        guard let source = sourceHistorique else { rythme = nil; return }
+        calculRythme = Task { [weak self] in
+            let mesure = await Task.detached { source.store.rhythm(context: source.contexte) }.value
+            guard !Task.isCancelled, let self, self.rythme != mesure else { return }
+            self.rythme = mesure
+            self.rafraichirPlan()
+        }
+    }
 
     /// Au retour au premier plan : les postes libérés, les échéances et la consigne suivent l'heure.
     func rafraichirPlan() {

@@ -16,8 +16,9 @@ import Foundation
 //      aux événements ; `finish(_:start:seconds:)` reste la fin « sans assistant » ;
 //  S7  la simulation s'arrête quand plus rien ne tourne ; ce qui n'a jamais été lancé sort dans `blocked` ;
 //  O7  (Occupation.swift) « à ton rythme » : un poste à `ρ` d'occupation attend `(1 − ρ) / ρ` fois la durée de la
-//      dernière amélioration d'un de ses couloirs avant de lancer la suivante (jamais avant `now`, jamais pendant
-//      les heures sans jeu) ; sans rythme, rien de tout cela n'existe.
+//      dernière amélioration d'un de ses couloirs avant de lancer la suivante, sans dépasser deux jours (une attente
+//      proportionnelle ferait attendre des semaines après une amélioration de trois semaines : le joueur repasse
+//      plus souvent que ça) ; jamais avant `now`, jamais pendant les heures sans jeu ; sans rythme, rien de tout cela.
 // Décisions :
 //  - minuteur illisible (fin inconnue) : le poste est tenu occupé jusqu'à `photo + durée complète du niveau`,
 //    la fin la plus tardive possible ; `Plan.unknownTimers` les compte ;
@@ -117,6 +118,8 @@ private let simulatedWorkers: [WorkerKind] = [.builder, .laboratory, .petHouse]
 
 /// Un poste « presque jamais occupé » ferait des attentes sans fin : le taux n'est jamais pris sous ce plancher.
 private let minimumRate = 0.05
+/// Attente maximale avant un lancement, en secondes (O7).
+private let maximumPause: TimeInterval = 2 * 86_400
 
 /// La fin d'un pas lancé à `start` pour `seconds` secondes, sans assistant. S6 : un assistant n'est affecté qu'à un
 /// pas déjà en cours (le plus long du poste à l'instant où il est libre) ; Assistants.swift rapproche donc la fin
@@ -315,7 +318,7 @@ struct Simulation {
         if let factor = pauseFactor[r.job.step.worker] {
             let s = scheduled[r.slot]
             let worked = s.end.timeIntervalSince(max(s.start, now))
-            if worked > 0 { laneFree[r.job.step.worker, default: [:]][r.lane] = r.end.addingTimeInterval(worked * factor) }
+            if worked > 0 { laneFree[r.job.step.worker, default: [:]][r.lane] = r.end.addingTimeInterval(min(worked * factor, maximumPause)) }
         }
         levels[id, default: [:]][level - 1, default: 0] -= 1
         levels[id, default: [:]][level, default: 0] += 1
