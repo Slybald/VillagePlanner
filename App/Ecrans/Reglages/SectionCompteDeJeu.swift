@@ -15,7 +15,7 @@ struct SectionCompteDeJeu: View {
     @State private var tagLu: String?
 
     /// Ce qui vit autant que le processus : le client (qui retient qu'une lecture est déjà partie depuis l'ouverture), le coffre et la cadence.
-    private struct Outils: Sendable {
+    struct Outils: Sendable {
         let cles: any SecretStore
         let cadence: CadenceStore
         let client: ClientJoueur
@@ -59,6 +59,7 @@ struct SectionCompteDeJeu: View {
 
     var body: some View {
         Section {
+            NavigationLink("Mon profil de joueur", value: "joueur")
             LabeledContent("Joueur") {
                 Text(tag ?? "Pas encore de photo").font(Theme.Police.chiffreDetail).foregroundStyle(Theme.Couleur.texteDoux)
             }
@@ -147,7 +148,7 @@ struct SectionCompteDeJeu: View {
         enCours = true
         message = nil
         do throws(JoueurError) {
-            let profil = try await outils.client.lire(tag: tag, now: Date())
+            let profil = try await modele.lireProfil(avec: outils.client, tag: tag)
             message = Self.resume(profil)
         } catch { message = Self.texte(error) }
         enCours = false
