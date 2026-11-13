@@ -119,3 +119,18 @@ public struct Profile: Sendable, Equatable, Codable {
     /// Valeur après réduction, arrondie vers le bas.
     static func reduced(_ value: Int, byPercent percent: Int) -> Int { value * (100 - percent) / 100 }
 }
+
+extension Profile {
+    /// Le profil pour un plan calculé à `maintenant` mais affiché à `aujourdhui` (l'exemple se lit à la date de son export, ancienne) :
+    /// une réduction déjà finie aujourd'hui est retirée, une réduction en cours garde sa durée restante d'aujourd'hui.
+    public func affiche(le aujourdhui: Date, calcule maintenant: Date) -> Profile {
+        func decale(_ r: Reduction?) -> Reduction? {
+            guard let r, r.endsAt > aujourdhui else { return nil }
+            return Reduction(percent: r.percent, endsAt: maintenant.addingTimeInterval(r.endsAt.timeIntervalSince(aujourdhui)))
+        }
+        var p = self
+        p.builderReduction = decale(builderReduction)
+        p.laboratoryReduction = decale(laboratoryReduction)
+        return p
+    }
+}

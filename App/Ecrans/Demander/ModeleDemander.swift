@@ -66,7 +66,8 @@ final class ModeleDemander {
     /// Le joueur a confirmé : le profil proposé devient son profil.
     func appliquer(_ modele: ModeleApp) {
         guard let propose else { return }
-        modele.profil = propose.profil
+        // Le profil de maintenant, pas celui de la demande : un réglage changé entre-temps reste.
+        modele.profil = modele.reference.map { propose.applique(sur: modele.profil, reference: $0) } ?? propose.profil
         self.propose = nil
         phrase = ""
         messageProfil = "Profil appliqué."

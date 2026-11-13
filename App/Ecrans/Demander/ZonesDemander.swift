@@ -111,6 +111,7 @@ struct ZoneQuestions: View {
                 ForEach(c.lignes, id: \.self) { Text($0).font(Theme.Police.texte).fixedSize(horizontal: false, vertical: true) }
             }
             if let phrase = e.phrase {
+                if !e.horsListe { Text("Explication générale").font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux) }
                 Text(phrase.prefix(1).uppercased() + phrase.dropFirst() + ".")
                     .font(Theme.Police.texte)
                     .fixedSize(horizontal: false, vertical: true)
