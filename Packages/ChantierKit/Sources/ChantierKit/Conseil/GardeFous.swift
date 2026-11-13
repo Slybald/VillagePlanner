@@ -30,7 +30,7 @@ public struct ReponseConseil: Decodable, Sendable, Equatable {
 }
 
 /// Pourquoi une réponse est rejetée. Jamais montré à l'écran (G3).
-public enum MotifRejet: Equatable, Sendable {
+public enum MotifRejet: Error, Equatable, Sendable {
     case vide
     case trop(caracteres: Int)
     case nombre(String)            // G1
@@ -85,23 +85,6 @@ public enum GardeFous {
             guard id != reponse.premier, let c = resume.candidat(id), c.debut >= premier.debut else { return .refusee(.identifiant(id)) }
             ensuite = c
         }
-        // La raison : une phrase, un point ou un point d'exclamation final au plus.
-        var raison = reponse.raison.precomposedStringWithCanonicalMapping.trimmingCharacters(in: .whitespacesAndNewlines)
-        if raison.hasSuffix(".") || raison.hasSuffix("!") { raison.removeLast() }
-        if raison.isEmpty { return .refusee(.vide) }
-        if raison.count > raisonMax { return .refusee(.trop(caracteres: raison.count)) }
-        // G1 : ni chiffre (de toute écriture), ni nombre, heure, date, jour ou quantité vague.
-        if let c = raison.first(where: { $0.isNumber }) { return .refusee(.nombre(String(c))) }
-        if let l = Nombres.lire(raison).first { return .refusee(.nombre(l.extrait)) }
-        // Forme : lettres latines, espaces, virgules, apostrophes, traits d'union ; pas de chiffres romains.
-        if let c = raison.unicodeScalars.first(where: { !autorise($0) }) { return .refusee(.interdit(String(c))) }
-        let tout = NSRange(raison.startIndex..., in: raison)
-        if let m = motifRomain.firstMatch(in: raison, range: tout) { return .refusee(.nombre((raison as NSString).substring(with: m.range))) }
-        // Une vraie phrase française : trois mots au moins, dont un mot outil.
-        let mots = raison.split(whereSeparator: { $0 == " " })
-        let replie = Nombres.replier(raison)
-        let jetons = replie.split(whereSeparator: { !$0.isLetter }).map(String.init)
-        if mots.count < 3 || !jetons.contains(where: motsOutils.contains) { return .refusee(.interdit("phrase")) }
         // G2 : les noms d'éléments (ceux de `premier`, de `ensuite`, de leur poste et de leurs prérequis).
         var permis = Set([premier.id] + premier.prerequis + (ensuite.map { [$0.id] + $0.prerequis } ?? []))
         for poste in [premier.poste] + (ensuite.map { [$0.poste] } ?? []) {
@@ -113,8 +96,36 @@ public enum GardeFous {
             }
             if let nom { permis.formUnion(reference.items.filter { $0.name == nom }.map(\.id)) }
         }
+        switch verifierRaison(reponse.raison, permis: permis, reference: reference) {
+        case .failure(let motif): return .refusee(motif)
+        case .success(let raison):
+            return .acceptee(texte: resume.composer(premier: premier, raison: raison, ensuite: ensuite),
+                             jusqua: premier.maintenant ? nil : premier.debut)
+        }
+    }
+
+    /// La phrase d'un modèle (une raison, ou l'explication d'une question) : une phrase française courte, sans chiffre ni date, qui ne
+    /// nomme que les éléments de `permis` (G1, G2). Rend la phrase nettoyée. Partagée par le conseiller (T20) et les questions (T21).
+    public static func verifierRaison(_ brut: String, permis: Set<Int>, reference: ReferenceData) -> Result<String, MotifRejet> {
+        // La raison : une phrase, un point ou un point d'exclamation final au plus.
+        var raison = brut.precomposedStringWithCanonicalMapping.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raison.hasSuffix(".") || raison.hasSuffix("!") { raison.removeLast() }
+        if raison.isEmpty { return .failure(.vide) }
+        if raison.count > raisonMax { return .failure(.trop(caracteres: raison.count)) }
+        // G1 : ni chiffre (de toute écriture), ni nombre, heure, date, jour ou quantité vague.
+        if let c = raison.first(where: { $0.isNumber }) { return .failure(.nombre(String(c))) }
+        if let l = Nombres.lire(raison).first { return .failure(.nombre(l.extrait)) }
+        // Forme : lettres latines, espaces, virgules, apostrophes, traits d'union ; pas de chiffres romains.
+        if let c = raison.unicodeScalars.first(where: { !autorise($0) }) { return .failure(.interdit(String(c))) }
+        let tout = NSRange(raison.startIndex..., in: raison)
+        if let m = motifRomain.firstMatch(in: raison, range: tout) { return .failure(.nombre((raison as NSString).substring(with: m.range))) }
+        // Une vraie phrase française : trois mots au moins, dont un mot outil.
+        let mots = raison.split(whereSeparator: { $0 == " " })
+        let replie = Nombres.replier(raison)
+        let jetons = replie.split(whereSeparator: { !$0.isLetter }).map(String.init)
+        if mots.count < 3 || !jetons.contains(where: motsOutils.contains) { return .failure(.interdit("phrase")) }
         for (id, nom) in nomsCites(raison, reference: reference).sorted(by: { $0.key < $1.key }) where !permis.contains(id) {
-            return .refusee(.nom(nom))
+            return .failure(.nom(nom))
         }
         // Tout mot à majuscule, hors début de phrase, est un nom : il doit être l'un de ceux qui viennent d'être permis.
         var reste = raison
@@ -126,14 +137,13 @@ public enum GardeFous {
         let jetonsReste = lettres.matches(in: reste, range: NSRange(reste.startIndex..., in: reste))
         for m in jetonsReste.dropFirst(raison.first?.isLetter == true && reste.first?.isLetter == true ? 1 : 0) {
             let mot = (reste as NSString).substring(with: m.range)
-            if mot.first?.isUppercase == true { return .refusee(.nom(mot)) }
+            if mot.first?.isUppercase == true { return .failure(.nom(mot)) }
         }
         // Liste noire.
         if let m = motifListeNoire.firstMatch(in: replie, range: NSRange(replie.startIndex..., in: replie)) {
-            return .refusee(.interdit((replie as NSString).substring(with: m.range)))
+            return .failure(.interdit((replie as NSString).substring(with: m.range)))
         }
-        return .acceptee(texte: resume.composer(premier: premier, raison: raison, ensuite: ensuite),
-                         jusqua: premier.maintenant ? nil : premier.debut)
+        return .success(raison)
     }
 
     /// Les éléments nommés dans `texte` : identifiant (l'un de ceux qui portent ce nom) → nom replié.

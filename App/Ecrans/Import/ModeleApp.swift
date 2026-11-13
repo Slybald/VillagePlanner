@@ -195,6 +195,13 @@ final class ModeleApp {
                            maintenant: PlanAffiche.horloge(village: village, estExemple: estExemple))
     }
 
+    /// Ce qu'il faut pour recalculer le plan avec une variante (questions de l'écran Demander, T21).
+    func contexteQuestion(_ affiche: VillageAffiche, reference: ReferenceData) -> ContexteQuestion? {
+        guard let plan = affiche.plan, let exportCourant else { return nil }
+        return ContexteQuestion(village: affiche.village, export: exportCourant, reference: reference, advice: conseils,
+                                profil: plan.profil, now: plan.maintenant)
+    }
+
     /// La date du calcul : celle du plan, sinon l'heure de l'appareil (l'exemple se lit à la date de son export).
     var maintenant: Date { affiche?.plan?.maintenant ?? Date() }
     /// Date de la dernière révision des conseils (ISO 8601, jour).

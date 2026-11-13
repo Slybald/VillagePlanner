@@ -2,7 +2,7 @@ import ChantierKit
 import SwiftUI
 
 /// L'écran « Demander » (PLAN §3.4) : la consigne en entier, ce que dit le moteur quand le conseiller l'a reformulée,
-/// et le profil de jeu en clair. Les questions arrivent avec T21.
+/// et le profil de jeu en clair, le profil en une phrase (à confirmer) et les questions sur le plan (T21).
 struct EcranDemander: View {
     let affiche: VillageAffiche
     let reference: ReferenceData
@@ -10,6 +10,8 @@ struct EcranDemander: View {
     @Environment(ModeleApp.self) private var modele
     @Environment(ModeleConseil.self) private var conseil
     @Environment(\.dismiss) private var fermer
+    /// Détenu par la feuille : fermée, la conversation disparaît.
+    @State private var saisies: ModeleDemander?
 
     var body: some View {
         NavigationStack {
@@ -21,12 +23,23 @@ struct EcranDemander: View {
                         CarteConsigne(texte: conseil.consigne(moteur: plan.consigne, cle: cle, now: plan.maintenant), reformulee: reformulee)
                         if reformulee { moteur(plan) }
                         profil(plan)
+                        if let saisies {
+                            ZoneProfilPhrase(modele: saisies, envoyer: { saisies.proposer(affiche: affiche, reference: reference, actuel: modele.profil) },
+                                             appliquer: { saisies.appliquer(modele) })
+                            ZoneQuestions(modele: saisies, envoyer: { saisies.poser(affiche: affiche, reference: reference, modele: modele) })
+                        }
                     }
                 }
                 .padding(.horizontal, Theme.Espace.marge)
                 .padding(.vertical, Theme.Espace.l)
             }
             .pageChantier()
+            .scrollDismissesKeyboard(.interactively)
+            .task {
+                let s = saisies ?? ModeleDemander(conseil: conseil)
+                saisies = s
+                s.lancerCaptures(affiche: affiche, reference: reference, modele: modele)
+            }
             .navigationTitle("Demander")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { fermer() } } }
