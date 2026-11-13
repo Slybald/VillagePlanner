@@ -8,6 +8,16 @@ struct EcranAPropos: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Espace.xl) {
+                VStack(spacing: Theme.Espace.s) {
+                    Image(.iconeAPropos)
+                        .resizable().scaledToFit()
+                        .frame(width: 128, height: 128)
+                        .clipShape(RoundedRectangle(cornerRadius: 128 * 0.225, style: .continuous))
+                        .shadow(color: Theme.Couleur.ombre, radius: 8, y: 4)
+                        .accessibilityHidden(true)
+                    Text("Chantier").font(Theme.Police.titre).foregroundStyle(Theme.Couleur.texte)
+                }
+                .frame(maxWidth: .infinity)
                 VStack(alignment: .leading, spacing: 0) {
                     ligne("Version", version)
                     Filet()
