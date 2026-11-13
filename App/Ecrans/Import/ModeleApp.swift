@@ -49,6 +49,10 @@ final class ModeleApp {
     var reglagesOuverts = false
     /// L'écran Demander est ouvert (feuille sur l'écran Cap).
     var demanderOuvert = false
+    /// L'écran Historique est ouvert (poussé depuis la date du cap).
+    var historiqueOuvert = false
+    /// Le ticket de chantier du dernier import ; nil une fois fermé (il ne revient pas pour cette photo).
+    var ticket: TicketAffiche?
     /// Ce qui a monté de niveau au dernier import (type → nouveau niveau → ancien), pour l'animation.
     private var montees: [Int: [Int: Int]] = [:]
     /// Les montées déjà jouées, une fois par endroit.
@@ -58,7 +62,9 @@ final class ModeleApp {
     private var exportCourant: VillageExport?
     private let conseils = (try? AdviceData.load()) ?? AdviceData()
 
-    private let store: SnapshotStore
+    /// Les photos et leur index : `applicationSupport/Photos` (là où T07 les écrivait déjà) et `applicationSupport/index.json`.
+    private let historique: HistoryStore
+    private var store: SnapshotStore { historique.photos }
     private let profilStore: ProfilStore
     /// Les réglages de l'app (l'exemple est-il actif). En mode `-importer-fichier`, un jeu isolé : les vrais restent intacts.
     private let reglages: UserDefaults
@@ -70,24 +76,29 @@ final class ModeleApp {
         reference = try? ReferenceData.load()
         let arguments = UserDefaults.standard      // arguments de lancement (-ecran, -exemple…)
         var reglages = UserDefaults.standard
-        var dossier = URL.applicationSupportDirectory.appending(path: "Photos")
+        var racine = URL.applicationSupportDirectory
         var fichiersDebug: [String] = []
         #if DEBUG
         // Débogage seulement : le fichier est importé dans un dossier neuf, sans trace entre deux lancements.
         // Plusieurs chemins séparés par « : » sont importés dans l'ordre (pour montrer un import refusé après un bon).
-        if let chemin = arguments.string(forKey: "importer-fichier") {
-            dossier = FileManager.default.temporaryDirectory.appending(path: "chantier-import-debug")
-            try? FileManager.default.removeItem(at: dossier)
-            fichiersDebug = chemin.split(separator: ":").map(String.init)
+        let chemin = arguments.string(forKey: "importer-fichier")
+        // `-historique-exemple <n>` : n photos tirées de l'exemple (les n − 1 premières écrites, la dernière importée,
+        // pour voir son ticket), dans le même dossier jetable.
+        let nExemple = arguments.integer(forKey: "historique-exemple")
+        if chemin != nil || nExemple > 0 {
+            racine = FileManager.default.temporaryDirectory.appending(path: "chantier-import-debug")
+            try? FileManager.default.removeItem(at: racine)
+            fichiersDebug = chemin?.split(separator: ":").map(String.init) ?? []
             let nom = "chantier-import-debug"
             UserDefaults.standard.removePersistentDomain(forName: nom)
             reglages = UserDefaults(suiteName: nom) ?? reglages
         }
         #endif
-        store = SnapshotStore(directory: dossier)
+        historique = HistoryStore(root: racine)
         self.reglages = reglages
         profilStore = ProfilStore(defaults: reglages)
         profil = profilStore.load()
+        var texteExemple: String?
         #if DEBUG
         // Captures : `-reduction <pourcentage>` met une réduction d'ouvriers sans fin, sans l'enregistrer.
         let pourcentage = arguments.integer(forKey: "reduction")
@@ -97,12 +108,27 @@ final class ModeleApp {
         if pourcentage > 0 { profil.builderReduction = Reduction(percent: pourcentage, endsAt: .distantFuture) }
         if arguments.bool(forKey: "reglages") { reglagesOuverts = true }
         if arguments.bool(forKey: "demander") { demanderOuvert = true }
+        if arguments.bool(forKey: "historique") { historiqueOuvert = true }
+        if nExemple > 0 {
+            var textes = HistoriqueExemple.textes(nExemple)
+            texteExemple = textes.popLast()
+            for t in textes { _ = try? store.save(t) }
+            if arguments.bool(forKey: "historique-illisible") {     // une photo qui ne se relit pas, entre deux bonnes
+                try? "{\"timestamp\":".write(to: store.directory.appending(path: Snapshot(date: Date(timeIntervalSince1970: 1_794_000_000)).fileName),
+                                              atomically: true, encoding: .utf8)
+            }
+        }
         #endif
 
         if !fichiersDebug.isEmpty {
             for chemin in fichiersDebug {
                 if let texte = try? String(contentsOfFile: chemin, encoding: .utf8) { importer(texte) }
             }
+        } else if let texteExemple {
+            importer(texteExemple)
+            #if DEBUG
+            if arguments.bool(forKey: "sans-ticket") { ticket = nil }
+            #endif
         } else if arguments.bool(forKey: "exemple") {
             chargerExemple(retenir: false)             // `-exemple 1` : pour les captures, rien n'est retenu
         } else if let derniere = store.latest() {
@@ -119,8 +145,9 @@ final class ModeleApp {
 
     /// Texte collé avec le bouton système. Un texte qui n'est pas un export ne change rien.
     func importer(_ texte: String) {
+        guard let contexte else { return }
         do throws(SnapshotStore.SaveError) {
-            let resultat = try store.save(texte)
+            let (resultat, _) = try historique.add(texte, context: contexte)
             guard let derniere = store.latest() else { throw .cannotWrite }
             let avant = affiche?.estExemple == false ? affiche?.village : nil   // depuis l'exemple : rien à animer
             affiche = calculer(derniere.export, photo: derniere.snapshot)
@@ -133,7 +160,12 @@ final class ModeleApp {
             switch resultat {
             case .created(let photo) where photo != derniere.snapshot:
                 retour = Retour(titre: "Photo plus ancienne", detail: "Elle est gardée, mais l'écran montre ta photo la plus récente.", estErreur: false)
-            case .created: retour = nil
+            case .created(let photo):
+                retour = nil
+                // Le ticket : ce qui a changé depuis la photo d'avant. Rien pour la première photo.
+                ticket = historique.ticket(for: photo, context: contexte).flatMap { diff in
+                    affiche.map { TicketAffiche(photo: photo, diff: diff, village: $0.village) }
+                }
             case .alreadyStored:
                 retour = Retour(titre: "Déjà enregistré", detail: "Cet export est déjà dans tes photos. Rien n'a changé.", estErreur: false)
             }
@@ -200,6 +232,30 @@ final class ModeleApp {
         guard let plan = affiche.plan, let exportCourant else { return nil }
         return ContexteQuestion(village: affiche.village, export: exportCourant, reference: reference, advice: conseils,
                                 profil: plan.profil, now: plan.maintenant)
+    }
+
+    /// Ce qu'il faut pour lire l'historique (écran Historique) ; nil sans données de référence.
+    var sourceHistorique: (store: HistoryStore, contexte: HistoryContext)? { contexte.map { (historique, $0) } }
+
+    private var contexte: HistoryContext? {
+        reference.map { HistoryContext(reference: $0, advice: conseils, profile: profil) }
+    }
+
+    /// Supprime une photo (geste confirmé par l'utilisateur) et remet l'écran sur la plus récente restante.
+    /// Sans photo restante, l'app revient au premier lancement. Faux si le fichier ne s'efface pas.
+    func supprimer(_ photo: Snapshot) -> Bool {
+        guard let contexte else { return false }
+        do { _ = try historique.delete(photo, context: contexte) } catch { return false }
+        ticket = nil
+        montees = [:]
+        if let derniere = store.latest() {
+            affiche = calculer(derniere.export, photo: derniere.snapshot)
+        } else {
+            affiche = nil
+            exportCourant = nil
+            historiqueOuvert = false
+        }
+        return true
     }
 
     /// La date du calcul : celle du plan, sinon l'heure de l'appareil (l'exemple se lit à la date de son export).
