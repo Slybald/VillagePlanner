@@ -66,11 +66,10 @@ final class ModeleApp {
     private var exportCourant: VillageExport?
     private let conseils = (try? AdviceData.load()) ?? AdviceData()
 
-    /// Les photos et leur index : dans le conteneur partagé (App Group) quand il existe, sinon dans Application Support
-    /// (`Photos` et `index.json`, là où T07 les écrivait). Les photos d'avant sont déplacées une seule fois, sans perte.
+    /// Les photos et leur index : TOUJOURS dans Application Support (`Photos` et `index.json`), avec ou sans App Group.
     private let historique: HistoryStore
-    /// Le conteneur partagé avec le widget ; nil sans l'App Group (interrupteur `CHANTIER_WIDGETS=NO`, compte refusé) :
-    /// l'app marche alors comme avant et ne publie rien au widget.
+    /// Le conteneur partagé avec le widget, où seul `PontWidget` écrit (état et images) ; nil sans l'App Group
+    /// (interrupteur `CHANTIER_WIDGETS=NO`, compte refusé) : l'app marche alors comme avant et ne publie rien.
     private let partage: URL?
     #if DEBUG
     /// `-widget-exemple 1` : publie l'exemple au widget, dates avancées jusqu'à maintenant (captures).
@@ -92,7 +91,8 @@ final class ModeleApp {
         reference = try? ReferenceData.load()
         let arguments = UserDefaults.standard      // arguments de lancement (-ecran, -exemple…)
         var reglages = UserDefaults.standard
-        var racine: URL?              // nil : stockage normal, choisi plus bas (conteneur partagé ou Application Support)
+        var racine = URL.applicationSupportDirectory
+        var recuperer = true          // le filet de sécurité ne touche jamais un dossier jetable
         var partage = Stockage.conteneurPartage(bundleID: Bundle.main.bundleIdentifier)
         var fichiersDebug: [String] = []
         #if DEBUG
@@ -106,6 +106,7 @@ final class ModeleApp {
         if chemin != nil || nExemple > 0 {
             let jetable = FileManager.default.temporaryDirectory.appending(path: "chantier-import-debug")
             racine = jetable
+            recuperer = false
             if !arguments.bool(forKey: "widget-exemple") { partage = nil }     // un dossier jetable ne publie rien au widget
             try? FileManager.default.removeItem(at: jetable)
             fichiersDebug = chemin?.split(separator: ":").map(String.init) ?? []
@@ -114,10 +115,17 @@ final class ModeleApp {
             reglages = UserDefaults(suiteName: nom) ?? reglages
         }
         #endif
-        let racineFinale = racine ?? Stockage.racine(support: .applicationSupportDirectory, partage: partage)
+        var retourDemarrage: Retour?
+        if recuperer, let partage {
+            // Versions de test qui avaient déplacé les photos dans le conteneur : on les COPIE ici, sans rien supprimer.
+            let bilan = Stockage.recuperer(depuis: partage, vers: racine)
+            if !bilan.conflits.isEmpty {
+                retourDemarrage = Retour(titre: "Photos récupérées", detail: "\(bilan.conflits.count) photo(s) portaient le même nom qu'une photo de l'app avec un contenu différent : elles sont gardées à côté, sous un nom en « .conflit ».", estErreur: false)
+            }
+        }
         self.partage = partage
-        historique = HistoryStore(root: racineFinale)
-        let lectures = HistoriqueJoueur(root: racineFinale)
+        historique = HistoryStore(root: racine)
+        let lectures = HistoriqueJoueur(root: racine)
         joueur = lectures
         #if DEBUG
         if arguments.bool(forKey: "joueur-historique-exemple") { JoueurExemple.ecrire(dans: lectures) }   // captures
@@ -169,6 +177,7 @@ final class ModeleApp {
         }
         if let ecran = arguments.string(forKey: "ecran"), let demande = OngletApp(rawValue: ecran) { onglet = demande }
         rafraichirPressePapiers()
+        retour = retourDemarrage
         pret = true
         recalculerRythme()
     }

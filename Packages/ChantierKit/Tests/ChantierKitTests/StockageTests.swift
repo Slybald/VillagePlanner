@@ -2,7 +2,8 @@ import Foundation
 import Testing
 @testable import ChantierKit
 
-// T25 : les photos passent dans le conteneur partagé, une seule fois, sans perte. Dossiers temporaires seulement.
+// T25 : les photos restent dans Application Support, que l'App Group existe ou non. Le seul code qui touche au conteneur
+// partagé côté photos est un filet de sécurité qui COPIE. Dossiers temporaires seulement.
 
 private func dossierTemporaire() -> URL {
     FileManager.default.temporaryDirectory.appending(path: "chantier-stockage-\(UUID().uuidString)")
@@ -22,89 +23,85 @@ private func lister(_ racine: URL) -> [String: Data] {
     @Test func leGroupeVientDeLIdentifiantDeLApp_celuiDuWidgetDonneLeMeme() {
         #expect(Stockage.groupe(bundleID: "fr.slybald.chantier") == "group.fr.slybald.chantier")
         #expect(Stockage.groupe(bundleID: "fr.slybald.chantier.widget") == "group.fr.slybald.chantier")
-    }
-
-    @Test func sansConteneurPartage_toutResteDansApplicationSupport_sansErreur() throws {
-        let support = dossierTemporaire()
-        defer { try? FileManager.default.removeItem(at: support) }
-        let photos = SnapshotStore(directory: support.appending(path: "Photos"))
-        try photos.save(exportMinimal(1_794_414_482))
-        let avant = lister(support)
-        #expect(Stockage.racine(support: support, partage: nil) == support)
-        #expect(lister(support) == avant)
         #expect(Stockage.conteneurPartage(bundleID: nil) == nil)     // (sur iOS, un groupe non accordé rend nil aussi)
     }
 
-    @Test func migrationSansPerte_chaquePhotoSeRetrouveOctetPourOctet_puisLAncienEstSupprime() throws {
-        let support = dossierTemporaire(), partage = dossierTemporaire()
-        defer { try? FileManager.default.removeItem(at: support); try? FileManager.default.removeItem(at: partage) }
-        let photos = SnapshotStore(directory: support.appending(path: "Photos"))
-        for t in [1_794_414_482, 1_794_500_000, 1_794_600_000] { try photos.save(exportMinimal(t)) }
-        let reference = try ReferenceData.load()
-        _ = HistoryStore(root: support).refresh(HistoryContext(reference: reference))     // écrit index.json
-        try Data("{\"format\":1}".utf8).write(to: support.appending(path: "joueur.json"))
-        try Data("{}".utf8).write(to: support.appending(path: "joueur-abime-1794000000.json"))
-        try Data("autre chose".utf8).write(to: support.appending(path: "etranger.txt"))      // pas à nous : reste
+    @Test func lesPhotosEtLIndexSontToujoursDansApplicationSupport_avecOuSansConteneur() throws {
+        // La racine de l'historique ne dépend pas de l'App Group : même dossier à YES et à NO.
+        let support = dossierTemporaire()
+        defer { try? FileManager.default.removeItem(at: support) }
+        for t in [1_794_414_482, 1_794_500_000] { try SnapshotStore(directory: support.appending(path: "Photos")).save(exportMinimal(t)) }
         let avant = lister(support)
-        #expect(avant.keys.contains("/index.json"))
-        let listeAvant = SnapshotStore(directory: support.appending(path: "Photos")).list()
-
-        #expect(Stockage.racine(support: support, partage: partage) == partage)
-
-        let apres = lister(partage)
-        for (nom, donnees) in avant where nom != "/etranger.txt" { #expect(apres[nom] == donnees, "\(nom) perdu ou changé") }
-        #expect(apres.count == avant.count - 1)
-        #expect(SnapshotStore(directory: partage.appending(path: "Photos")).list() == listeAvant)
-        // L'ancien est supprimé après vérification, sauf ce qui n'est pas à nous.
-        #expect(lister(support).keys.sorted() == ["/etranger.txt"])
-        #expect(!FileManager.default.fileExists(atPath: support.appending(path: "Photos").path))
+        let historique = HistoryStore(root: support)
+        #expect(historique.photos.list().count == 2)
+        // Ouvrir le conteneur (YES) puis ne plus l'avoir (NO) ne touche à aucune photo.
+        let partage = dossierTemporaire()
+        defer { try? FileManager.default.removeItem(at: partage) }
+        let etat = WidgetEtat(photo: Date(timeIntervalSince1970: 1_794_414_482), postes: [])
+        #expect(etat.ecrire(dans: partage))
+        #expect(lister(support) == avant)
+        #expect(HistoryStore(root: support).photos.list().count == 2)
+        #expect(lister(support) == avant)
     }
 
-    @Test func migrationUneSeuleFois_unSecondPassageNeCopieRienEtNeTouchePasLesNouvellesPhotos() throws {
+    @Test func filet_copieCeQuiManqueSansRienSupprimerNiEcraser() throws {
         let support = dossierTemporaire(), partage = dossierTemporaire()
         defer { try? FileManager.default.removeItem(at: support); try? FileManager.default.removeItem(at: partage) }
+        // Une ancienne version de test avait déplacé 3 photos dans le conteneur ; 1 est déjà revenue dans Application Support.
+        let dansPartage = SnapshotStore(directory: partage.appending(path: "Photos"))
+        for t in [1_794_414_482, 1_794_500_000, 1_794_600_000] { try dansPartage.save(exportMinimal(t)) }
+        try Data("{\"format\":1}".utf8).write(to: partage.appending(path: "joueur.json"))
         try SnapshotStore(directory: support.appending(path: "Photos")).save(exportMinimal(1_794_414_482))
-        #expect(Stockage.migrer(de: support, vers: partage).copies == 1)
-        try SnapshotStore(directory: partage.appending(path: "Photos")).save(exportMinimal(1_794_500_000))
-        let avant = lister(partage)
-        #expect(Stockage.migrer(de: support, vers: partage) == Stockage.Migration())
-        #expect(lister(partage) == avant)
+        let avantPartage = lister(partage)
+
+        let bilan = Stockage.recuperer(depuis: partage, vers: support)
+        #expect(bilan.copies == 3 && bilan.conflits.isEmpty && bilan.echecs.isEmpty)   // 2 photos + joueur.json
+        #expect(SnapshotStore(directory: support.appending(path: "Photos")).list() == dansPartage.list())
+        #expect(lister(partage) == avantPartage)                    // le conteneur n'a perdu aucun fichier
+        // Rejouer ne change rien.
+        let avantSupport = lister(support)
+        #expect(Stockage.recuperer(depuis: partage, vers: support) == Stockage.Recuperation())
+        #expect(lister(support) == avantSupport)
     }
 
-    @Test func migrationReprise_unFichierDejaCopieAvecLeMemeContenuEstReconnu() throws {
-        let support = dossierTemporaire(), partage = dossierTemporaire()
-        defer { try? FileManager.default.removeItem(at: support); try? FileManager.default.removeItem(at: partage) }
-        for racine in [support, partage] { try SnapshotStore(directory: racine.appending(path: "Photos")).save(exportMinimal(1_794_414_482)) }
-        try SnapshotStore(directory: support.appending(path: "Photos")).save(exportMinimal(1_794_500_000))
-        let bilan = Stockage.migrer(de: support, vers: partage)
-        #expect(bilan.dejaLa == 1 && bilan.copies == 1 && bilan.estComplete && bilan.conflits.isEmpty)
-        #expect(SnapshotStore(directory: partage.appending(path: "Photos")).list().count == 2)
-        #expect(lister(support).isEmpty)
-    }
-
-    @Test func fichierDeMemeNomMaisDeContenuDifferent_jamaisEcrase_l_originalResteOuIlEst() throws {
+    @Test func filet_unConflitDeNomEstCopieSousUnAutreNom_sansEcraserLOriginal() throws {
         let support = dossierTemporaire(), partage = dossierTemporaire()
         defer { try? FileManager.default.removeItem(at: support); try? FileManager.default.removeItem(at: partage) }
         let nom = Snapshot(date: Date(timeIntervalSince1970: 1_794_414_482)).fileName
-        for (racine, texte) in [(support, "ancien"), (partage, "autre")] {
+        for (racine, texte) in [(support, "celle d'Application Support"), (partage, "celle du conteneur")] {
             try FileManager.default.createDirectory(at: racine.appending(path: "Photos"), withIntermediateDirectories: true)
             try Data(texte.utf8).write(to: racine.appending(path: "Photos").appending(path: nom))
         }
-        let bilan = Stockage.migrer(de: support, vers: partage)
+        let bilan = Stockage.recuperer(depuis: partage, vers: support)
         #expect(bilan.conflits == ["Photos/" + nom])
-        #expect(try String(contentsOf: partage.appending(path: "Photos").appending(path: nom), encoding: .utf8) == "autre")
-        #expect(try String(contentsOf: support.appending(path: "Photos").appending(path: nom), encoding: .utf8) == "ancien")
+        let conflit = nom + ".conflit"
+        #expect(try String(contentsOf: support.appending(path: "Photos").appending(path: nom), encoding: .utf8) == "celle d'Application Support")
+        #expect(try String(contentsOf: support.appending(path: "Photos").appending(path: conflit), encoding: .utf8) == "celle du conteneur")
+        #expect(try String(contentsOf: partage.appending(path: "Photos").appending(path: nom), encoding: .utf8) == "celle du conteneur")
+        // Le fichier « .conflit » n'est pas une photo pour l'app, mais il est gardé ; un second passage ne le signale plus.
+        #expect(SnapshotStore(directory: support.appending(path: "Photos")).list().count == 1)
+        #expect(Stockage.recuperer(depuis: partage, vers: support) == Stockage.Recuperation())
     }
 
-    @Test func copieImpossible_rienNEstSupprime_etLaRacineResteApplicationSupport() throws {
-        let support = dossierTemporaire(), faux = dossierTemporaire()
-        defer { try? FileManager.default.removeItem(at: support); try? FileManager.default.removeItem(at: faux) }
+    @Test func filet_sansConteneurOuSansPhotos_neFaitRienEtNeSupprimeRien() throws {
+        let support = dossierTemporaire(), vide = dossierTemporaire(), absent = dossierTemporaire()
+        defer { try? FileManager.default.removeItem(at: support); try? FileManager.default.removeItem(at: vide) }
         try SnapshotStore(directory: support.appending(path: "Photos")).save(exportMinimal(1_794_414_482))
-        try Data("je suis un fichier, pas un dossier".utf8).write(to: faux)     // la destination ne peut pas recevoir de dossier
+        try FileManager.default.createDirectory(at: vide, withIntermediateDirectories: true)
         let avant = lister(support)
-        let bilan = Stockage.migrer(de: support, vers: faux)
-        #expect(!bilan.estComplete && bilan.copies == 0)
+        #expect(Stockage.recuperer(depuis: vide, vers: support) == Stockage.Recuperation())
+        #expect(Stockage.recuperer(depuis: absent, vers: support) == Stockage.Recuperation())
         #expect(lister(support) == avant)
-        #expect(Stockage.racine(support: support, partage: faux) == support)
+    }
+
+    @Test func filet_destinationImpossible_signaleEnEchec_sansRienPerdre() throws {
+        let support = dossierTemporaire(), partage = dossierTemporaire()
+        defer { try? FileManager.default.removeItem(at: support); try? FileManager.default.removeItem(at: partage) }
+        try SnapshotStore(directory: partage.appending(path: "Photos")).save(exportMinimal(1_794_414_482))
+        try Data("un fichier, pas un dossier".utf8).write(to: support)
+        let avant = lister(partage)
+        let bilan = Stockage.recuperer(depuis: partage, vers: support)
+        #expect(bilan.copies == 0 && !bilan.echecs.isEmpty)
+        #expect(lister(partage) == avant)
     }
 }

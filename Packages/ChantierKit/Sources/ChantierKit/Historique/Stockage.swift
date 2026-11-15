@@ -1,8 +1,8 @@
 import Foundation
 
-/// Où vivent les photos et leur index (T25). Un seul choix : le conteneur partagé (App Group) quand il existe,
-/// sinon Application Support, comme avant. Sans l'App Group (interrupteur `CHANTIER_WIDGETS=NO`, compte refusé,
-/// signature absente), rien ne change et rien ne produit d'erreur.
+/// Le conteneur partagé avec le widget (T25). Les photos et leur index restent TOUJOURS dans Application Support :
+/// le widget ne les lit pas, il lit l'état que l'app publie dans le conteneur (`WidgetEtat`). Sans l'App Group
+/// (interrupteur `CHANTIER_WIDGETS=NO`, compte refusé, signature absente), il n'y a pas de conteneur et rien ne change.
 public enum Stockage {
     /// Le groupe est `group.<identifiant de l'app>` ; le widget (`<identifiant>.widget`) donne le même.
     public static func groupe(bundleID: String) -> String {
@@ -15,72 +15,41 @@ public enum Stockage {
         return fileManager.containerURL(forSecurityApplicationGroupIdentifier: groupe(bundleID: bundleID))
     }
 
-    /// La racine des photos : le conteneur partagé une fois tout déplacé, sinon `support`.
-    /// Une migration qui n'a pas pu tout copier laisse l'ancien dossier intact et garde `support` jusqu'au prochain essai.
-    public static func racine(support: URL, partage: URL?, fileManager: FileManager = .default) -> URL {
-        guard let partage else { return support }
-        return migrer(de: support, vers: partage, fileManager: fileManager).estComplete ? partage : support
-    }
-
-    /// Ce qui s'est passé : jamais d'effacement sans copie vérifiée.
-    public struct Migration: Equatable, Sendable {
-        /// Fichiers copiés et vérifiés (leur original est alors supprimé).
+    /// Filet de sécurité pour les versions de test qui avaient déplacé les photos dans le conteneur : COPIE vers
+    /// `support` ce qui y manque. Rien n'est jamais supprimé ni écrasé ; un fichier de même nom mais de contenu
+    /// différent est copié sous `<nom>.conflit` (ni photo ni lecture pour l'app : `SnapshotStore.list` l'ignore, mais il est gardé ; un nom en `-conflit.json` serait lu comme une seconde photo de la même date) et signalé.
+    public struct Recuperation: Equatable, Sendable {
         public var copies = 0
-        /// Fichiers déjà présents à l'arrivée avec le même contenu (leur original est alors supprimé).
-        public var dejaLa = 0
-        /// Fichiers qui existent des deux côtés avec un contenu différent : l'original reste où il est.
         public var conflits: [String] = []
-        /// Fichiers qui n'ont pas pu être copiés ou vérifiés : l'original reste où il est.
         public var echecs: [String] = []
-        public var estComplete: Bool { echecs.isEmpty }
     }
 
-    /// Ce que l'app a déjà écrit à la racine : le dossier des photos, l'index, les lectures du joueur.
-    static func aDeplacer(dans racine: URL, fileManager fm: FileManager) -> [String] {
-        var noms = ["Photos", "index.json", "joueur.json"]
-        let autres = (try? fm.contentsOfDirectory(atPath: racine.path)) ?? []
-        noms += autres.filter { $0.hasPrefix("joueur-abime-") }.sorted()
-        return noms
-    }
-
-    /// Déplace les photos, l'index et les lectures du joueur de `ancien` vers `nouveau` : copie, vérification de chaque
-    /// fichier (contenu identique, octet pour octet), puis suppression de l'original de ce fichier seulement.
-    /// Se rejoue sans risque : ce qui est déjà passé est reconnu, ce qui reste est repris.
     @discardableResult
-    public static func migrer(de ancien: URL, vers nouveau: URL, fileManager fm: FileManager = .default) -> Migration {
-        var bilan = Migration()
-        guard ancien.standardizedFileURL != nouveau.standardizedFileURL else { return bilan }
-
-        func deplacer(_ source: URL, vers cible: URL, nom: String) {
+    public static func recuperer(depuis partage: URL, vers support: URL, fileManager fm: FileManager = .default) -> Recuperation {
+        var bilan = Recuperation()
+        func copier(_ source: URL, _ cible: URL, nom: String) {
             guard let donnees = try? Data(contentsOf: source) else { bilan.echecs.append(nom); return }
-            if fm.fileExists(atPath: cible.path) {
-                guard let present = try? Data(contentsOf: cible) else { bilan.echecs.append(nom); return }
-                if present != donnees { bilan.conflits.append(nom); return }
-                bilan.dejaLa += 1
-            } else {
-                do {
-                    try fm.createDirectory(at: cible.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    try donnees.write(to: cible, options: .atomic)
-                } catch { bilan.echecs.append(nom); return }
-                guard (try? Data(contentsOf: cible)) == donnees else { bilan.echecs.append(nom); return }
-                bilan.copies += 1
-            }
-            if (try? fm.removeItem(at: source)) == nil { bilan.echecs.append(nom) }
+            var destination = cible
+            if let present = try? Data(contentsOf: cible) {
+                if present == donnees { return }
+                destination = cible.appendingPathExtension("conflit")
+                if let deja = try? Data(contentsOf: destination), deja == donnees { return }   // déjà signalé
+                if fm.fileExists(atPath: destination.path) { bilan.echecs.append(nom); return }
+                bilan.conflits.append(nom)
+            } else if fm.fileExists(atPath: cible.path) { bilan.echecs.append(nom); return }
+            do {
+                try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try donnees.write(to: destination, options: .atomic)
+            } catch { bilan.echecs.append(nom); return }
+            guard (try? Data(contentsOf: destination)) == donnees else { bilan.echecs.append(nom); return }
+            bilan.copies += 1
         }
-
-        for nom in aDeplacer(dans: ancien, fileManager: fm) {
-            let source = ancien.appending(path: nom)
-            var estDossier: ObjCBool = false
-            guard fm.fileExists(atPath: source.path, isDirectory: &estDossier) else { continue }
-            if estDossier.boolValue {
-                for fichier in ((try? fm.contentsOfDirectory(atPath: source.path)) ?? []).sorted() {
-                    deplacer(source.appending(path: fichier), vers: nouveau.appending(path: nom).appending(path: fichier), nom: nom + "/" + fichier)
-                }
-                // Le dossier d'origine disparaît quand il est vide ; s'il reste des conflits, il reste avec eux.
-                if ((try? fm.contentsOfDirectory(atPath: source.path)) ?? ["x"]).isEmpty { try? fm.removeItem(at: source) }
-            } else {
-                deplacer(source, vers: nouveau.appending(path: nom), nom: nom)
-            }
+        let photos = partage.appending(path: "Photos")
+        for nom in ((try? fm.contentsOfDirectory(atPath: photos.path)) ?? []).sorted() where nom.hasSuffix(".json") {
+            copier(photos.appending(path: nom), support.appending(path: "Photos").appending(path: nom), nom: "Photos/" + nom)
+        }
+        if fm.fileExists(atPath: partage.appending(path: "joueur.json").path) {
+            copier(partage.appending(path: "joueur.json"), support.appending(path: "joueur.json"), nom: "joueur.json")
         }
         return bilan
     }
