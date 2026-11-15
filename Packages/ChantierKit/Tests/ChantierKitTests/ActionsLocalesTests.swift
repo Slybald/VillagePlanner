@@ -160,6 +160,110 @@ import Testing
         #expect(fusion.applying([Self.action(P.cannon, 4, at: 1)], reference: r, profile: Self.free).refused.map(\.reason) == [.noIdleCopy])
     }
 
+    @Test func L5_minuteurDeLaPhotoFiniAuDebut_leNiveauSuivantSeMarque() {
+        // Photo du test S0 : roi en cours vers 2 (7 200 s). Huit jours plus tard, le plan conseille roi 3 maintenant.
+        let items = [P.item(P.king, .heroes, section: "heroes", [S.lv(10), S.lv(50), S.lv(50)])]
+        let (v, r) = S.village(items, ["heroes": [P.e(P.king, 1, timer: 7_200)]])
+        let now = S.at(8 * 86_400)
+        let conseil = makePlan(for: v, reference: r, advice: AdviceData(), profile: Self.free, now: now)
+            .steps.first { !$0.fromSnapshot && $0.step.itemID == P.king }
+        #expect(conseil?.step.level == 3 && conseil?.start == now)
+        let res = v.applying([LocalAction(itemID: P.king, level: 3, start: now)], reference: r, profile: Self.free)
+        #expect(res.refused.isEmpty)
+        #expect(res.village.elements.filter { $0.itemID == P.king } ==
+                [Element(itemID: P.king, level: 2, count: 1, maxLevel: 3, baseLevel: 3, upgradeEnds: now.addingTimeInterval(50))])
+        // Avant la fin du minuteur, le roi n'est pas encore au niveau 2 : refusée (L5 avant L4).
+        #expect(v.applying([LocalAction(itemID: P.king, level: 3, start: S.at(7_000))], reference: r, profile: Self.free)
+                    .refused.map(\.reason) == [.noIdleCopy])
+    }
+
+    @Test func L5_deuxMarquesSuccessivesSurLeMemeHeros_enChaine() {
+        let (v, r) = Self.village(["heroes": [P.e(P.king, 1)]])
+        let a = Self.action(P.king, 2, at: 10), b = Self.action(P.king, 3, at: 600)   // roi 2 fini à 510
+        let res = v.applying([a, b], reference: r, profile: Self.free)
+        #expect(res.refused.isEmpty)
+        #expect(res.applied.map(\.ends) == [S.at(510), S.at(1_100)])
+        #expect(res.village.elements.filter { $0.itemID == P.king }.map { "\($0.level)\($0.upgrading)" } == ["2true"])
+        // Un groupe de deux canons : l'un fini, l'autre au repos au niveau 1 : la seconde marque prend celui qui a monté.
+        let (v2, r2) = Self.village(["buildings": [P.e(P.cannon, 1, 2)]], huts: 1)
+        let c1 = Self.action(P.cannon, 2, at: 10), c2 = Self.action(P.cannon, 3, at: 200)
+        let res2 = v2.applying([c1, c2], reference: r2, profile: Self.free)
+        #expect(res2.refused.isEmpty)
+        #expect(Set(res2.village.elements.filter { $0.itemID == P.cannon }.map { "\($0.level)x\($0.count)\($0.upgrading)" })
+                == ["1x1false", "2x1true"])
+    }
+
+    @Test func L4_minuteurIllisible_posteTenuJusquALaFinLaPlusTardive() {
+        // Roi en cours, minuteur illisible : il tient l'ouvrier jusqu'à photo + 500 s (durée complète du niveau 2).
+        let (v, r) = Self.village(["buildings": [P.e(P.cannon, 2, 2)],
+                                   "heroes": [ExportEntry(id: P.king, level: 1, extras: ["timer": .string("?")])]])
+        #expect(v.applying([Self.action(P.cannon, 3, at: 499)], reference: r, profile: Self.free).refused.map(\.reason) == [.postBusy])
+        #expect(v.applying([Self.action(P.cannon, 3, at: 500)], reference: r, profile: Self.free).applied.count == 1)
+    }
+
+    // MARK: - L8 : les couloirs affichés
+
+    @Test func L8_proprietes_villagesAleatoires_marquesSurLesCouloirsLibres() {
+        var acceptees = 0, refusees: [String] = []
+        let postes: [WorkerKind] = [.builder, .laboratory, .petHouse]
+        for seed in UInt64(1)...200 {
+            let (v, r, profile, now) = Aleatoire.village(seed)
+            let plan0 = makePlan(for: v, reference: r, advice: AdviceData(), profile: profile, now: now)
+            /// Les minuteurs de la photo de chaque couloir, sans marque : (type, niveau, fin) triés.
+            func minuteurs(_ ls: [[ScheduledStep]], _ res: LocalActionsResult?) -> [[String]] {
+                ls.map { $0.filter { $0.fromSnapshot && res?.launch(of: $0.step) == nil }
+                    .map { "\($0.step.itemID)/\($0.step.level)/\(Int($0.end.timeIntervalSince1970))" }.sorted() }
+            }
+            var actions: [LocalAction] = []
+            var res = v.applying([], reference: r, profile: profile)
+            // Comme le bouton : on marque le conseil d'un couloir libre, on recalcule, on recommence.
+            marquage: for _ in 0..<12 {
+                let plan = makePlan(for: res.village, reference: r, advice: AdviceData(), profile: profile, now: now)
+                for w in postes {
+                    let ls = displayLanes(of: plan, worker: w, posts: v.workers[w] ?? 0, launches: res)
+                    let photo = plan0.steps.filter { $0.worker == w && $0.fromSnapshot }.count
+                    #expect(ls.count <= max(v.workers[w] ?? 0, photo), "graine \(seed) : couloirs en trop")
+                    let base = minuteurs(displayLanes(of: plan0, worker: w, posts: v.workers[w] ?? 0, launches: nil), nil)
+                    // Un minuteur fini qu'une marque a remplacé (enchaînement) disparaît ; les autres restent dans leur couloir.
+                    let apres = minuteurs(ls, res)
+                    #expect(apres.count == base.count && zip(apres, base).allSatisfy { Set($0).isSubset(of: $1) },
+                            "graine \(seed) : un minuteur de la photo a changé de couloir")
+                    for (i, l) in ls.enumerated() {
+                        let debut = { (s: ScheduledStep) in res.launch(of: s.step)?.action.start ?? s.start }
+                        let tries = l.sorted { (debut($0), $0.end) < (debut($1), $1.end) }
+                        #expect(zip(tries, tries.dropFirst()).allSatisfy { debut($1) >= $0.end }, "graine \(seed) : chevauchement")
+                        // Les marques de ce couloir sont celles qu'on y a touchées (exemplaires identiques comptés ensemble).
+                        let ici = l.compactMap { res.launch(of: $0.step).map { "\($0.action.itemID)/\($0.action.level)" } }.sorted()
+                        let touchees = res.applied.filter { $0.action.lane == i }
+                            .filter { a in plan.steps.contains { $0.worker == w && $0.step.itemID == a.action.itemID } }
+                            .map { "\($0.action.itemID)/\($0.action.level)" }.sorted()
+                        #expect(ici == touchees, "graine \(seed) : marque hors de son couloir")
+                    }
+                }
+                for w in postes {
+                    let ls = displayLanes(of: plan, worker: w, posts: v.workers[w] ?? 0, launches: res)
+                    for (i, l) in ls.enumerated() where !l.contains(where: { $0.fromSnapshot && $0.end > now }) {
+                        guard let conseil = l.first(where: { !$0.fromSnapshot }), conseil.start <= now else { continue }
+                        let a = LocalAction(itemID: conseil.step.itemID, level: conseil.step.level, start: now, lane: i)
+                        let essai = v.applying(actions + [a], reference: r, profile: profile)
+                        if let refus = essai.refused.first(where: { $0.action == a }) {
+                            refusees.append("graine \(seed) \(a.itemID)→\(a.level) \(refus.reason)")
+                            continue
+                        }
+                        actions.append(a)
+                        res = essai
+                        acceptees += 1
+                        continue marquage
+                    }
+                }
+                break
+            }
+        }
+        print("L8 : \(acceptees) marques acceptées, \(refusees.count) refusées")
+        #expect(acceptees > 100)
+        #expect(refusees.isEmpty, "\(refusees.prefix(5))")
+    }
+
     // MARK: - Action annulée
 
     @Test func actionAnnulee_leVillageRedevientLaPhoto() {

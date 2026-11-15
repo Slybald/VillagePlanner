@@ -18,8 +18,8 @@ public enum ResultatImport: Equatable, Sendable {
                                 actualiser: (Snapshot, VillageExport) -> Void = { _, _ in }) -> ResultatImport {
         let resultat: SnapshotStore.Outcome
         do { resultat = try historique.add(texte, context: context).outcome } catch { return .refuse(error) }
-        if case .created(let photo) = resultat { actions?.purge(importedAt: photo.date) }
         guard let derniere = historique.photos.latest() else { return .refuse(.cannotWrite) }
+        if case .created(let photo) = resultat { actions?.purge(importedAt: photo.date) }   // la photo se relit : elle fait foi
         actualiser(derniere.snapshot, derniere.export)
         switch resultat {
         case .created(let photo): return .enregistree(photo, plusRecente: photo == derniere.snapshot)

@@ -52,9 +52,8 @@ final class ModeleApp {
         didSet {
             guard pret, profil != oldValue else { return }   // rien d'écrit pendant l'init
             profilStore.save(profil)
-            rafraichirPlan()
+            rafraichirPlan()                                 // republie le widget et replanifie, une fois (le profil a changé)
             recalculerRythme()                               // les réductions et les heures sans jeu entrent dans la mesure
-            planifierNotifications(plan: affiche?.plan?.plan, estExemple: affiche?.estExemple ?? true)   // heures sans jeu
         }
     }
     /// Prévenir quand un poste se libère (T26) : éteint par défaut, gardé dans les réglages de l'app.
@@ -80,6 +79,11 @@ final class ModeleApp {
     /// Pourquoi la dernière marque a été refusée (écran Chantier) ; nil une fois une marque acceptée.
     private(set) var refusLance: String?
     private let actionsStore: LocalActionStore
+    /// Ce qui a été publié au widget et aux notifications la dernière fois.
+    private struct Publication: Equatable {
+        let photo: Date, exemple: Bool, actions: [LocalAction], profil: Profile, equipements: EquipementsJoueur?
+    }
+    @ObservationIgnored private var publiee: Publication?
     /// Ce qui a monté de niveau au dernier import (type → nouveau niveau → ancien), pour l'animation.
     private var montees: [Int: [Int: Int]] = [:]
     /// Les montées déjà jouées, une fois par endroit.
@@ -319,8 +323,15 @@ final class ModeleApp {
         let lancees = villagePhoto.applying(actions, reference: reference, profile: profil)
         let village = lancees.village
         let plan = plan(village: village, export: export, reference: reference, estExemple: photo == nil)
-        publierAuWidget(plan: plan?.plan, village: village, reference: reference, photo: photo, lancees: lancees)
-        planifierNotifications(plan: plan?.plan, estExemple: photo == nil)    // chaque import annule et replanifie
+        // Widget et notifications : une fois par changement réel (photo, marques, profil, équipements), pas à chaque
+        // retour au premier plan.
+        let cle = Publication(photo: villagePhoto.date, exemple: photo == nil, actions: lancees.applied.map(\.action),
+                              profil: profil, equipements: equipements)
+        if cle != publiee {
+            publiee = cle
+            publierAuWidget(plan: plan?.plan, village: village, reference: reference, photo: photo, lancees: lancees)
+            planifierNotifications(plan: plan?.plan, estExemple: photo == nil)    // chaque import annule et replanifie
+        }
         return VillageAffiche(village: village, rapport: progress(of: village, reference: reference), photo: photo,
                               plan: plan, changements: changements, villagePhoto: villagePhoto, lancees: lancees)
     }
@@ -440,6 +451,7 @@ final class ModeleApp {
             exportCourant = nil
             historiqueOuvert = false
             PontWidget.retirer(partage: partage)
+            publiee = nil
         }
         return true
     }
@@ -488,27 +500,31 @@ final class ModeleApp {
             }
             return
         }
+        guard changerActions(actions + [action]) else { return }
         refusLance = nil
         retiree = nil
-        changerActions(actions + [action])
     }
 
     /// Retire une marque « Lancé » (geste sur le couloir) ; `annulerRetrait()` la remet.
     func retirerLance(_ action: LocalAction) {
-        changerActions(actions.filter { $0 != action })
-        retiree = action
+        if changerActions(actions.filter { $0 != action }) { retiree = action }
     }
 
     func annulerRetrait() {
-        guard let retiree else { return }
+        guard let retiree, changerActions(actions + [retiree]) else { return }
         self.retiree = nil
-        changerActions(actions + [retiree])
     }
 
-    private func changerActions(_ nouvelles: [LocalAction]) {
+    /// Enregistre puis affiche. Faux (et rien ne change à l'écran) si le fichier ne s'écrit pas : une marque non gardée
+    /// disparaîtrait au prochain lancement.
+    private func changerActions(_ nouvelles: [LocalAction]) -> Bool {
+        if affiche?.estExemple == false, !actionsStore.save(nouvelles) {        // l'exemple ne retient rien
+            refusLance = "Pas enregistré : l'espace de l'app n'est pas accessible en écriture. Rien n'a changé."
+            return false
+        }
         actions = nouvelles
-        if affiche?.estExemple == false { actionsStore.save(nouvelles) }    // l'exemple ne retient rien
         rafraichirPlan()
+        return true
     }
 
     /// Le tag du joueur, lu dans la dernière photo (jamais en dur) ; nil sans photo lisible. Sert à l'API officielle (T29).
