@@ -31,6 +31,9 @@ enum OngletApp: String, Hashable {
 /// L'état de l'app : la dernière photo, l'exemple, le presse-papiers. Seul endroit qui touche au presse-papiers.
 @MainActor @Observable
 final class ModeleApp {
+    /// L'instance de l'app, aussi celle de l'action Raccourcis : un import par raccourci met l'écran à jour.
+    static let partage = ModeleApp()
+
     let reference: ReferenceData?
     private(set) var affiche: VillageAffiche?
     private(set) var retour: Retour?
@@ -192,14 +195,19 @@ final class ModeleApp {
 
     // MARK: Import
 
-    /// Texte collé avec le bouton système. Un texte qui n'est pas un export ne change rien.
-    func importer(_ texte: String) {
-        guard let contexte else { return }
-        do throws(SnapshotStore.SaveError) {
-            let (resultat, _) = try historique.add(texte, context: contexte)
-            guard let derniere = store.latest() else { throw .cannotWrite }
-            let avant = affiche?.estExemple == false ? affiche?.village : nil   // depuis l'exemple : rien à animer
-            affiche = calculer(derniere.export, photo: derniere.snapshot)
+    /// Texte collé avec le bouton système, ou donné par l'action Raccourcis. Un texte qui n'est pas un export ne change rien.
+    /// Rend la phrase de résultat (l'action la dit ; les écrans montrent `retour` et le ticket).
+    @discardableResult
+    func importer(_ texte: String) -> String {
+        guard let contexte else { return "Les données du jeu sont illisibles : réinstalle l'app" }
+        let avant = affiche?.estExemple == false ? affiche?.village : nil   // depuis l'exemple : rien à animer
+        let resultat = ResultatImport.importer(texte, dans: historique, context: contexte) { derniere, export in
+            affiche = calculer(export, photo: derniere)    // recalcule, recharge le widget, replanifie les notifications
+        }
+        switch resultat {
+        case .refuse(let erreur):
+            retour = Self.message(pour: erreur, avecPhoto: affiche?.estExemple == false)
+        case .enregistree, .dejaPresente:
             if let avant, let apres = affiche?.village {
                 montees = apres.montees(depuis: avant)
                 monteesJouees = []
@@ -207,23 +215,23 @@ final class ModeleApp {
             reglages.removeObject(forKey: Self.cleExemple)    // le premier vrai import efface l'exemple
             recalculerRythme()
             onglet = .cap
-            switch resultat {
-            case .created(let photo) where photo != derniere.snapshot:
-                retour = Retour(titre: "Photo plus ancienne", detail: "Elle est gardée, mais l'écran montre ta photo la plus récente.", estErreur: false)
-            case .created(let photo):
-                retour = nil
-                // Le ticket : ce qui a changé depuis la photo d'avant. Rien pour la première photo.
-                ticket = historique.ticket(for: photo, context: contexte).flatMap { diff in
-                    affiche.map { TicketAffiche(photo: photo, diff: diff, village: $0.village) }
+            if case .enregistree(let photo, let plusRecente) = resultat {
+                if plusRecente {
+                    retour = nil
+                    // Le ticket : ce qui a changé depuis la photo d'avant. Rien pour la première photo.
+                    ticket = historique.ticket(for: photo, context: contexte).flatMap { diff in
+                        affiche.map { TicketAffiche(photo: photo, diff: diff, village: $0.village) }
+                    }
+                } else {
+                    retour = Retour(titre: "Photo plus ancienne", detail: "Elle est gardée, mais l'écran montre ta photo la plus récente.", estErreur: false)
                 }
-            case .alreadyStored:
+            } else {
                 retour = Retour(titre: "Déjà enregistré", detail: "Cet export est déjà dans tes photos. Rien n'a changé.", estErreur: false)
             }
-        } catch {
-            retour = Self.message(pour: error, avecPhoto: affiche?.estExemple == false)
         }
         presseTraite = UIPasteboard.general.changeCount
         presseTexteAColler = false
+        return resultat.phrase(cap: affiche?.plan?.plan.cap, now: maintenant, timeZone: affiche?.plan?.fuseau ?? .current)
     }
 
     private static func message(pour erreur: SnapshotStore.SaveError, avecPhoto: Bool) -> Retour {
