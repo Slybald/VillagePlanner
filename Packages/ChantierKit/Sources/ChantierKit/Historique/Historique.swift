@@ -1,6 +1,6 @@
 import Foundation
 
-/// Les photos et leur index. UN SEUL point de configuration : `root` (T25 le déplacera dans l'App Group).
+/// Les photos et leur index. UN SEUL point de configuration : `root` (le conteneur partagé ou Application Support : voir `Stockage`).
 /// Photos dans `root/Photos`, index dans `root/index.json`. Aucune horloge.
 public struct HistoryStore: Sendable {
     public let root: URL

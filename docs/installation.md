@@ -41,22 +41,20 @@ Ouvre `Chantier.xcodeproj`, choisis ton iPhone comme destination, puis Product >
 
 Au premier lancement, iOS refuse d'ouvrir l'app (« développeur non approuvé »). Sur l'iPhone : Réglages > Général > VPN et gestion de l'appareil > ton identifiant Apple > Faire confiance. Relance ensuite l'app.
 
-## 7. Le widget et l'App Group (essai du conteneur partagé)
+## 7. Le widget et l'App Group
 
-Le widget lit un fichier que l'app écrit dans un conteneur partagé, l'**App Group** `group.<identifiant de l'app>`. Cette première version n'affiche qu'un texte d'essai : elle sert à savoir si ton compte gratuit accepte l'App Group.
+Le widget lit ce que l'app écrit dans un conteneur partagé, l'**App Group** `group.<identifiant de l'app>`. Il y en a trois : le petit (le nombre de postes libres, ou le prochain qui se libère), le moyen (tes ouvriers, ton labo et tes familiers) et celui de l'écran verrouillé (le compte à rebours). Ils changent d'état à l'heure juste, sans réseau.
 
-1. Dans Xcode, sélectionne la cible **Chantier**, onglet Signing & Capabilities. Vérifie : Team = ton Personal Team (ou « None » si tu as rempli `Signature.local.xcconfig`), et, dans la capacité **App Groups**, la case `group.fr.slybald.chantier` (ou `group.<ton identifiant>`) cochée. La capacité est déjà déclarée par `Config/Chantier.entitlements`. Si la case n'est pas cochée ou est rouge, touche l'actualisation (flèches) à côté de la liste.
-2. Fais exactement la même vérification sur la cible **ChantierWidget**. Les deux cibles doivent porter **le même** groupe.
-3. Lance l'app sur l'iPhone (étape 5), ouvre-la une fois. Elle écrit le texte d'essai au lancement.
-4. Écran d'accueil de l'iPhone : appui long sur le fond > « + » > cherche « Chantier » > « Essai du conteneur » > Ajouter le widget.
+**L'interrupteur `CHANTIER_WIDGETS`.** Il vaut `YES` par défaut. À `NO`, l'app est compilée et signée seule : pas de widget, pas d'App Group, et l'app marche comme avant (photos dans Application Support). Pour le mettre à `NO` sans toucher au dépôt, décommente la ligne `CHANTIER_WIDGETS = NO` dans ton `Config/Signature.local.xcconfig`. Pour passer de `NO` à `YES`, retire la ligne : l'app déplace alors ses photos dans le conteneur partagé, une seule fois et sans perte (chaque fichier est copié, vérifié, puis l'ancien est supprimé).
 
-**Ce que tu dois voir.** Le widget affiche « Conteneur partagé : OK, écrit par l'app à HH:MM ».
-- « Ouvre l'app une fois » : le groupe existe mais l'app n'y a encore rien écrit. Ouvre l'app, puis attends ou retire et remets le widget.
-- « App Group indisponible » : l'iPhone n'a pas accordé le groupe à l'app ou au widget. Regarde le message de Xcode (ci-dessous).
+**Essai sur l'iPhone.**
+1. Dans Xcode, sélectionne la cible **Chantier**, onglet Signing & Capabilities. Vérifie : Team = ton Personal Team (ou « None » si tu as rempli `Signature.local.xcconfig`), et, dans la capacité **App Groups**, la case `group.fr.slybald.chantier` (ou `group.<ton identifiant>`) cochée. La capacité est déclarée par `Config/Chantier.entitlements`. Si la case est rouge, touche l'actualisation (flèches). Fais la même vérification sur la cible **ChantierWidget** : les deux cibles portent **le même** groupe.
+2. Lance l'app sur l'iPhone (étape 5) et colle un export (étape 8). L'app écrit alors l'état du widget.
+3. Écran d'accueil de l'iPhone : appui long sur le fond > « + » > cherche « Chantier » > ajoute le petit ou le moyen. Écran verrouillé : appui long > Personnaliser > ajoute « Compte à rebours ».
 
-**Si le compte gratuit refuse l'App Group.** Xcode le dit au moment de signer (ou de choisir l'équipe), dans Signing & Capabilities, en rouge. Messages attendus, selon le cas : « Failed Registering Bundle Identifier. The app identifier "…" cannot be registered to your development team because it is not available » (identifiant déjà pris : change `APP_BUNDLE_ID`, voir l'étape 5), ou un message disant que l'équipe n'a pas accès à la capacité App Groups, ou « Provisioning profile … doesn't include the com.apple.security.application-groups entitlement ». Ces deux derniers textes sont de mémoire, non vus sur un compte gratuit ; recopie le message exact dans ta réponse.
-- Si le refus vient seulement de l'identifiant : un `APP_BUNDLE_ID` à toi règle le problème. Chaque compte gratuit a son propre espace d'identifiants ; un identifiant lié à une capacité n'appartient qu'à une équipe (source : réponse d'un ingénieur Apple, [forum développeurs, fil 834802](https://developer.apple.com/forums/thread/834802)).
-- Si le compte refuse l'App Group lui-même : le widget ne peut pas lire les photos, et il faudra le compte payant (99 $ par an, décision D2). Les sources se contredisent sur ce point : la liste officielle des capacités ([Supported capabilities (iOS)](https://developer.apple.com/help/account/reference/supported-capabilities-ios)) cite « App groups » mais le tableau des comptes gratuits n'en est pas lisible hors navigateur ; seul cet essai tranche.
+**Si Xcode refuse de signer à cause de l'App Group.** Il le dit dans Signing & Capabilities, en rouge. Messages attendus : « Failed Registering Bundle Identifier. The app identifier "…" cannot be registered to your development team because it is not available » (identifiant déjà pris : change `APP_BUNDLE_ID`, étape 5), ou un message disant que l'équipe n'a pas accès à la capacité App Groups, ou « Provisioning profile … doesn't include the com.apple.security.application-groups entitlement » (ces deux derniers textes sont de mémoire, non vus sur un compte gratuit).
+- Si le refus vient seulement de l'identifiant : un `APP_BUNDLE_ID` à toi règle le problème. Chaque compte gratuit a son propre espace d'identifiants ([forum développeurs, fil 834802](https://developer.apple.com/forums/thread/834802)).
+- Si le compte refuse l'App Group lui-même : mets `CHANTIER_WIDGETS = NO` dans `Signature.local.xcconfig` et relance (⌘R). L'app se signe sans widget et fonctionne comme avant. Le widget demande alors le compte payant (99 $ par an, décision D2). Les sources se contredisent sur ce point ([Supported capabilities (iOS)](https://developer.apple.com/help/account/reference/supported-capabilities-ios)) : seul cet essai tranche. Dans ce cas, recopie le message exact de Xcode.
 
 ## 8. Premier usage
 

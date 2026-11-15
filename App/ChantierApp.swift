@@ -9,7 +9,6 @@ struct ChantierApp: App {
 
     init() {
         Theme.Police.enregistrer()
-        ecrireEssaiConteneur()
     }
 
     var body: some Scene {
@@ -22,15 +21,6 @@ struct ChantierApp: App {
                 .onChange(of: phase) { if phase == .active { modele.rafraichirPressePapiers(); modele.rafraichirPlan() } }
         }
     }
-}
-
-/// Première étape de T25 : écrit dans le conteneur partagé un texte que le widget affiche.
-/// Sans l'App Group (compte refusé, signature absente), `containerURL` rend nil et rien n'est écrit.
-private func ecrireEssaiConteneur() {
-    guard let id = Bundle.main.bundleIdentifier,
-          let dossier = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group." + id) else { return }
-    let texte = "Conteneur partagé : OK\nécrit par l'app à " + Date.now.formatted(date: .omitted, time: .shortened)
-    try? texte.write(to: dossier.appending(path: "essai.txt"), atomically: true, encoding: .utf8)
 }
 
 /// Premier lancement, ou les trois onglets.

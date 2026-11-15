@@ -66,8 +66,16 @@ final class ModeleApp {
     private var exportCourant: VillageExport?
     private let conseils = (try? AdviceData.load()) ?? AdviceData()
 
-    /// Les photos et leur index : `applicationSupport/Photos` (là où T07 les écrivait déjà) et `applicationSupport/index.json`.
+    /// Les photos et leur index : dans le conteneur partagé (App Group) quand il existe, sinon dans Application Support
+    /// (`Photos` et `index.json`, là où T07 les écrivait). Les photos d'avant sont déplacées une seule fois, sans perte.
     private let historique: HistoryStore
+    /// Le conteneur partagé avec le widget ; nil sans l'App Group (interrupteur `CHANTIER_WIDGETS=NO`, compte refusé) :
+    /// l'app marche alors comme avant et ne publie rien au widget.
+    private let partage: URL?
+    #if DEBUG
+    /// `-widget-exemple 1` : publie l'exemple au widget, dates avancées jusqu'à maintenant (captures).
+    private var widgetExemple = false
+    #endif
     private var store: SnapshotStore { historique.photos }
     private let profilStore: ProfilStore
     /// Les lectures du profil de joueur (T30), à côté des photos.
@@ -84,7 +92,8 @@ final class ModeleApp {
         reference = try? ReferenceData.load()
         let arguments = UserDefaults.standard      // arguments de lancement (-ecran, -exemple…)
         var reglages = UserDefaults.standard
-        var racine = URL.applicationSupportDirectory
+        var racine: URL?              // nil : stockage normal, choisi plus bas (conteneur partagé ou Application Support)
+        var partage = Stockage.conteneurPartage(bundleID: Bundle.main.bundleIdentifier)
         var fichiersDebug: [String] = []
         #if DEBUG
         // Débogage seulement : le fichier est importé dans un dossier neuf, sans trace entre deux lancements.
@@ -95,16 +104,20 @@ final class ModeleApp {
         // pour voir son ticket), dans le même dossier jetable.
         let nExemple = arguments.integer(forKey: "historique-exemple")
         if chemin != nil || nExemple > 0 {
-            racine = FileManager.default.temporaryDirectory.appending(path: "chantier-import-debug")
-            try? FileManager.default.removeItem(at: racine)
+            let jetable = FileManager.default.temporaryDirectory.appending(path: "chantier-import-debug")
+            racine = jetable
+            if !arguments.bool(forKey: "widget-exemple") { partage = nil }     // un dossier jetable ne publie rien au widget
+            try? FileManager.default.removeItem(at: jetable)
             fichiersDebug = chemin?.split(separator: ":").map(String.init) ?? []
             let nom = "chantier-import-debug"
             UserDefaults.standard.removePersistentDomain(forName: nom)
             reglages = UserDefaults(suiteName: nom) ?? reglages
         }
         #endif
-        historique = HistoryStore(root: racine)
-        let lectures = HistoriqueJoueur(root: racine)
+        let racineFinale = racine ?? Stockage.racine(support: .applicationSupportDirectory, partage: partage)
+        self.partage = partage
+        historique = HistoryStore(root: racineFinale)
+        let lectures = HistoriqueJoueur(root: racineFinale)
         joueur = lectures
         #if DEBUG
         if arguments.bool(forKey: "joueur-historique-exemple") { JoueurExemple.ecrire(dans: lectures) }   // captures
@@ -145,6 +158,9 @@ final class ModeleApp {
             if arguments.bool(forKey: "sans-ticket") { ticket = nil }
             #endif
         } else if arguments.bool(forKey: "exemple") {
+            #if DEBUG
+            widgetExemple = arguments.bool(forKey: "widget-exemple")
+            #endif
             chargerExemple(retenir: false)             // `-exemple 1` : pour les captures, rien n'est retenu
         } else if let derniere = store.latest() {
             affiche = calculer(derniere.export, photo: derniere.snapshot)
@@ -226,9 +242,23 @@ final class ModeleApp {
         exportCourant = export
         let village = Village(export: export, reference: reference, joueur: equipements)
         let changements = photo.flatMap { villagePrecedent(avant: $0, reference: reference) }.map { village.changements(depuis: $0) }
+        let plan = plan(village: village, export: export, reference: reference, estExemple: photo == nil)
+        publierAuWidget(plan: plan?.plan, village: village, reference: reference, photo: photo)
         return VillageAffiche(village: village, rapport: progress(of: village, reference: reference), photo: photo,
-                              plan: plan(village: village, export: export, reference: reference, estExemple: photo == nil),
-                              changements: changements)
+                              plan: plan, changements: changements)
+    }
+
+    /// Chaque photo affichée (import, suppression, lancement) remet l'état du widget d'accord et recharge sa chronologie.
+    /// L'exemple n'est jamais publié, sauf en débogage avec `-widget-exemple 1`.
+    private func publierAuWidget(plan: Plan?, village: Village, reference: ReferenceData, photo: Snapshot?) {
+        var decalage: TimeInterval = 0
+        #if DEBUG
+        if photo == nil, widgetExemple, let plan { decalage = Date().timeIntervalSince(plan.now) } else if photo == nil { return }
+        #else
+        if photo == nil { return }
+        #endif
+        guard let plan else { PontWidget.retirer(partage: partage); return }
+        PontWidget.publier(plan: plan, village: village, reference: reference, partage: partage, decalage: decalage)
     }
 
     /// La photo juste avant celle-ci, lue dans le dossier des photos ; nil quand il n'y en a pas.
@@ -283,6 +313,7 @@ final class ModeleApp {
             affiche = nil
             exportCourant = nil
             historiqueOuvert = false
+            PontWidget.retirer(partage: partage)
         }
         return true
     }

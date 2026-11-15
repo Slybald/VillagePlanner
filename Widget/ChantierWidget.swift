@@ -1,49 +1,49 @@
 import SwiftUI
 import WidgetKit
 
-/// Première étape de T25 : un widget qui lit un texte écrit par l'app dans le conteneur partagé (App Group).
-/// Il sert à vérifier que le compte Apple accepte l'App Group ; les vrais widgets viennent ensuite.
+/// Les trois widgets de Chantier (T25) : le petit (prochain poste libre), le moyen (les couloirs) et celui de l'écran
+/// verrouillé (compte à rebours). Ils lisent l'état que l'app écrit dans le conteneur partagé ; aucun réseau.
 @main
 struct ChantierWidgetBundle: WidgetBundle {
-    var body: some Widget { EssaiConteneur() }
+    var body: some Widget {
+        WidgetPetit()
+        WidgetMoyen()
+        WidgetVerrou()
+    }
 }
 
-struct EssaiConteneur: Widget {
+struct WidgetPetit: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "EssaiConteneur", provider: Fournisseur()) { entree in
-            Text(entree.texte)
-                .font(.callout)
-                .multilineTextAlignment(.center)
-                .containerBackground(.fill.tertiary, for: .widget)
+        StaticConfiguration(kind: "ChantierPetit", provider: Fournisseur()) { entree in
+            VuePetit(entree: entree)
+                .containerBackground(Teinte.fond, for: .widget)
         }
-        .configurationDisplayName("Essai du conteneur")
-        .description("Affiche le texte écrit par l'app dans le conteneur partagé.")
+        .configurationDisplayName("Prochain poste libre")
+        .description("Combien de postes sont libres, ou dans combien de temps le prochain se libère.")
         .supportedFamilies([.systemSmall])
     }
 }
 
-struct Entree: TimelineEntry {
-    let date: Date
-    let texte: String
+struct WidgetMoyen: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "ChantierMoyen", provider: Fournisseur()) { entree in
+            VueMoyenne(entree: entree)
+                .containerBackground(Teinte.fond, for: .widget)
+        }
+        .configurationDisplayName("Couloirs")
+        .description("Tes ouvriers, ton labo et tes familiers : ce qui tourne et quand ça finit.")
+        .supportedFamilies([.systemMedium])
+    }
 }
 
-struct Fournisseur: TimelineProvider {
-    func placeholder(in context: Context) -> Entree { Entree(date: .now, texte: "Conteneur partagé") }
-
-    func getSnapshot(in context: Context, completion: @escaping (Entree) -> Void) {
-        completion(Entree(date: .now, texte: lireTexte()))
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<Entree>) -> Void) {
-        completion(Timeline(entries: [Entree(date: .now, texte: lireTexte())], policy: .never))
-    }
-
-    /// Le groupe est « group.<identifiant de l'app> » ; celui du widget est « <identifiant de l'app>.widget ».
-    private func lireTexte() -> String {
-        let identifiantApp = (Bundle.main.bundleIdentifier ?? "").replacingOccurrences(of: ".widget", with: "")
-        guard let dossier = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group." + identifiantApp) else {
-            return "App Group indisponible"
+struct WidgetVerrou: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "ChantierVerrou", provider: Fournisseur()) { entree in
+            VueVerrou(entree: entree)
+                .containerBackground(.fill.tertiary, for: .widget)
         }
-        return (try? String(contentsOf: dossier.appending(path: "essai.txt"), encoding: .utf8)) ?? "Ouvre l'app une fois"
+        .configurationDisplayName("Compte à rebours")
+        .description("Le temps avant que le prochain poste se libère, sur l'écran verrouillé.")
+        .supportedFamilies([.accessoryRectangular, .accessoryInline])
     }
 }
