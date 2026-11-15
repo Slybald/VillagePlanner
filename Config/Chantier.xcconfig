@@ -2,6 +2,16 @@
 // Identifiant de l'app. Le widget en est dérivé (<id>.widget) et l'App Group aussi (group.<id>).
 // Pour en changer sans toucher au dépôt : redéfinir APP_BUNDLE_ID dans Signature.local.xcconfig.
 APP_BUNDLE_ID = fr.slybald.chantier
+
+// Interrupteur du widget : YES (défaut) embarque le widget et déclare l'App Group ; NO compile et signe l'app seule,
+// sans widget ni App Group (photos dans Application Support, comme avant). À mettre à NO dans Signature.local.xcconfig
+// si Xcode refuse de signer à cause de l'App Group (compte Apple gratuit).
+CHANTIER_WIDGETS = YES
+CHANTIER_ENTITLEMENTS_YES = Config/Chantier.entitlements
+CHANTIER_ENTITLEMENTS_NO =
+CHANTIER_SIGNATURE_WIDGET_YES = YES
+CHANTIER_SIGNATURE_WIDGET_NO = NO
+
 // L'identifiant d'équipe Apple vient d'un fichier local ignoré par git (modèle : Signature.exemple.xcconfig).
 // Sans ce fichier, le projet compile quand même pour le simulateur.
 #include? "Signature.local.xcconfig"
