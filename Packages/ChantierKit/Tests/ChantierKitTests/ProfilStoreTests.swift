@@ -7,7 +7,7 @@ import Testing
 @Suite struct ProfilStoreTests {
     /// Des préférences neuves pour chaque test.
     private func neuf() -> (ProfilStore, UserDefaults) {
-        let d = UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!
+        let d = PreferencesDeTest.neuves()
         return (ProfilStore(defaults: d), d)
     }
 
@@ -84,5 +84,14 @@ import Testing
         #expect(cap(nil) == 2000)
         #expect(cap(Reduction(percent: 50, endsAt: .distantFuture)) == 1000)
         #expect(cap(Reduction(percent: 50, endsAt: Sim.at(-1))) == 2000)   // expirée : comme sans réduction
+    }
+
+    @Test func reductionDeLExemple_seJugeALaDateDAffichage_pasALaDateDExport() {
+        let export = Date(timeIntervalSince1970: 1_000_000), aujourdhui = Date(timeIntervalSince1970: 5_000_000)
+        let finie = Reduction(percent: 20, endsAt: aujourdhui.addingTimeInterval(-1))
+        let enCours = Reduction(percent: 30, endsAt: aujourdhui.addingTimeInterval(3 * 86_400))
+        let p = Profile(builderReduction: finie, laboratoryReduction: enCours).affiche(le: aujourdhui, calcule: export)
+        #expect(p.builderReduction == nil)      // finie aujourd'hui, même si active à la date de l'export
+        #expect(p.laboratoryReduction == Reduction(percent: 30, endsAt: export.addingTimeInterval(3 * 86_400)))
     }
 }

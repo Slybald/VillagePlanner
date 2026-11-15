@@ -11,12 +11,13 @@ struct TuileCategorie: View {
     var lieu = "cap"
 
     @ScaledMetric(relativeTo: .body) private var image: CGFloat = 44
+    @Environment(\.dynamicTypeSize) private var tailleTexte
 
     var body: some View {
         HStack(spacing: Theme.Espace.s) {
             Illustration(id: categorie.representant, niveau: niveau, taille: min(image, 72), avecPastille: false, lieu: lieu)
             VStack(alignment: .leading, spacing: Theme.Espace.xs) {
-                Text(categorie.nom).font(Theme.Police.texte).lineLimit(1).minimumScaleFactor(0.75)
+                Text(categorie.nom).font(Theme.Police.texte).lineLimit(tailleTexte.isAccessibilitySize ? nil : 1).minimumScaleFactor(0.75)
                 if let valeur {
                     HStack(spacing: Theme.Espace.s) {
                         Jauge(valeur: valeur, taille: .fine, couleur: categorie.couleur).accessibilityHidden(true)

@@ -70,6 +70,10 @@ final class ModeleApp {
     private let historique: HistoryStore
     private var store: SnapshotStore { historique.photos }
     private let profilStore: ProfilStore
+    /// Les lectures du profil de joueur (T30), à côté des photos.
+    let joueur: HistoriqueJoueur
+    /// Ce que l'API dit des équipements à la dernière lecture ; nil avant la première (la règle V4 s'applique seule).
+    private(set) var equipements: EquipementsJoueur?
     /// Les réglages de l'app (l'exemple est-il actif). En mode `-importer-fichier`, un jeu isolé : les vrais restent intacts.
     private let reglages: UserDefaults
     /// `changeCount` du presse-papiers au dernier collage : tant qu'il ne bouge pas, on ne reproposera pas le même texte.
@@ -100,6 +104,12 @@ final class ModeleApp {
         }
         #endif
         historique = HistoryStore(root: racine)
+        let lectures = HistoriqueJoueur(root: racine)
+        joueur = lectures
+        #if DEBUG
+        if arguments.bool(forKey: "joueur-historique-exemple") { JoueurExemple.ecrire(dans: lectures) }   // captures
+        #endif
+        equipements = reference.flatMap { lectures.equipements(reference: $0) }
         self.reglages = reglages
         profilStore = ProfilStore(defaults: reglages)
         profil = profilStore.load()
@@ -214,7 +224,7 @@ final class ModeleApp {
     private func calculer(_ export: VillageExport, photo: Snapshot?) -> VillageAffiche? {
         guard let reference else { return nil }
         exportCourant = export
-        let village = Village(export: export, reference: reference)
+        let village = Village(export: export, reference: reference, joueur: equipements)
         let changements = photo.flatMap { villagePrecedent(avant: $0, reference: reference) }.map { village.changements(depuis: $0) }
         return VillageAffiche(village: village, rapport: progress(of: village, reference: reference), photo: photo,
                               plan: plan(village: village, export: export, reference: reference, estExemple: photo == nil),
@@ -225,13 +235,14 @@ final class ModeleApp {
     private func villagePrecedent(avant photo: Snapshot, reference: ReferenceData) -> Village? {
         guard let precedente = store.list().last(where: { $0.date < photo.date }), let texte = store.text(of: precedente),
               let export = try? VillageExport.parse(texte) else { return nil }
-        return Village(export: export, reference: reference)
+        return Village(export: export, reference: reference, joueur: equipements)
     }
 
     private func plan(village: Village, export: VillageExport, reference: ReferenceData, estExemple: Bool) -> PlanAffiche? {
         guard village.status != .unknownTownHall else { return nil }
         return PlanAffiche(village: village, export: export, reference: reference, conseils: conseils, profil: profil,
                            maintenant: PlanAffiche.horloge(village: village, estExemple: estExemple),
+                           aujourdhui: estExemple ? Date() : nil,
                            rythme: estExemple ? nil : rythme)
     }
 
@@ -301,6 +312,20 @@ final class ModeleApp {
                                       plan: plan(village: affiche.village, export: exportCourant, reference: reference,
                                                  estExemple: affiche.estExemple),
                                       changements: affiche.changements)
+    }
+
+    /// Le tag du joueur, lu dans la dernière photo (jamais en dur) ; nil sans photo lisible. Sert à l'API officielle (T29).
+    var tagJoueur: String? { store.latest()?.export.tag }
+
+    /// Une lecture réussie du profil (T30) : elle est gardée avec sa date, et les équipements équipés passent en tête de la forge.
+    func joueurLu(_ profil: ProfilJoueur, le date: Date) {
+        joueur.enregistrer(profil, le: date)
+        guard let reference else { return }
+        guard let nouveaux = EquipementsJoueur(profil: profil, reference: reference), nouveaux != equipements else { return }
+        equipements = nouveaux
+        if let derniere = store.latest(), affiche?.estExemple == false {
+            affiche = calculer(derniere.export, photo: derniere.snapshot)
+        }
     }
 
     // MARK: Presse-papiers

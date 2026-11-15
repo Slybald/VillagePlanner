@@ -49,6 +49,8 @@ enum Theme {
 
         /// Grand chiffre ou grand titre. La taille vient d'un `@ScaledMetric` du composant.
         static func date(_ taille: CGFloat) -> Font { .custom(titres, fixedSize: taille) }
+        /// La date du cap en très grand (suit la taille du texte, comme les autres polices).
+        static let grandeDate = Font.custom(titres, size: 60, relativeTo: .largeTitle)
         /// La ligne au-dessus du grand chiffre, le nom d'un écran.
         static let surtitre = Font.custom(titres, size: 20, relativeTo: .title3)
         static let consigne = Font.custom(texteCourant, size: 20, relativeTo: .title3).weight(.medium)

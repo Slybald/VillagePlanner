@@ -8,6 +8,8 @@ public struct Village: Sendable {
     public let workers: [WorkerKind: Int]
     public let unknown: [ExportEntry]              // identifiants absents de la référence (V5)
     public let status: VillageStatus               // .ok, .staleReference (V5, V6), .unknownTownHall (V7)
+    /// Les équipements que l'API dit équipés (T30) ; vide sans lecture du profil.
+    public let equipped: Set<Int>
 
     /// Identifiant de l'hôtel de ville, dans la référence comme dans l'export.
     public static let townHallID = 1000001
@@ -23,7 +25,8 @@ public struct Village: Sendable {
                                                        (1000007, .laboratory), (1000068, .petHouse),
                                                        (1000070, .blacksmith)]
 
-    public init(export: VillageExport, reference: ReferenceData) {
+    /// `joueur` : ce que l'API dit des équipements (T30). Il remplace V4 : un équipement qu'elle dit possédé compte même au niveau 1.
+    public init(export: VillageExport, reference: ReferenceData, joueur: EquipementsJoueur? = nil) {
         let entries = Self.sections.flatMap { export.sections[$0] ?? [] }
         let th = entries.filter { $0.id == Self.townHallID }.compactMap(\.level).max() ?? 0
         let thKnown = th >= 1 && th <= reference.maxTownHall      // sinon V7
@@ -45,8 +48,9 @@ public struct Village: Sendable {
             let level = entry.level ?? 0
             // Minuteur illisible gardé brut par le lecteur : en cours, fin inconnue, jamais terminé.
             let upgrading = entry.timer != nil || entry.extras["timer"] != nil
-            // V4 : un équipement au niveau 1 est tenu pour non possédé.
-            if item.category == .equipment, level <= 1, !upgrading { continue }
+            // V4 : un équipement au niveau 1 est tenu pour non possédé, sauf si l'API dit qu'on le possède.
+            if item.category == .equipment, level <= 1, !upgrading,
+               !(level == 1 && (joueur?.possedes.contains(item.id) ?? false)) { continue }
             if thKnown, level > item.maxLevel(atTownHall: th) { stale = true }   // V6 : compté terminé, bandeau
             present[item.id, default: 0] += entry.count
             elements.append(Element(item: item, townHall: th, level: level, count: entry.count,
@@ -86,6 +90,7 @@ public struct Village: Sendable {
         date = export.date
         self.elements = elements
         self.workers = workers
+        equipped = joueur?.equipes ?? []
         self.unknown = unknown
         status = !thKnown ? .unknownTownHall : stale ? .staleReference : .ok
     }

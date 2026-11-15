@@ -117,6 +117,12 @@ enum Cons {
 
     // MARK: - Dates en français
 
+    @Test func libreDepuis_uneHeureDuJour_neSeLitPasCommeUneDuree() {
+        // « libre depuis 2 h 35 » se lirait comme 2 h 35 de durée.
+        #expect(C.lisible(Lisible.depuis, -2 * C.h, now: 0) == "aujourd'hui 11 h 47")
+        #expect(C.lisible(Lisible.depuis, -14 * C.h, now: 0) == "hier 23 h 47")
+    }
+
     @Test func dates_aujourdhuiDemainUnJourDeLaSemaineEtLeJourLeMois() {
         // Lundi 12 janvier 1970, 13 h 46 min 40 s.
         #expect(C.lisible(Lisible.moment, 3 * C.h) == "aujourd'hui 16 h 47")
@@ -138,7 +144,7 @@ enum Cons {
 
     @Test func dates_libreDepuis() {
         let now = 8 * C.h                                                      // 21 h 46 min 40 s
-        #expect(C.lisible(Lisible.depuis, 5 * C.h, now: now) == "18 h 47")
+        #expect(C.lisible(Lisible.depuis, 5 * C.h, now: now) == "aujourd'hui 18 h 47")
         #expect(C.lisible(Lisible.depuis, -14 * C.h, now: now) == "hier 23 h 47")
         #expect(C.lisible(Lisible.depuis, -3 * C.jour, now: 0) == "vendredi 13 h 47")      // 9 janvier 1970
         #expect(C.lisible(Lisible.depuis, -9 * C.jour, now: 0) == "le 3 janvier")

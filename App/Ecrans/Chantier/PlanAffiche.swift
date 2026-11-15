@@ -19,9 +19,10 @@ struct PlanAffiche {
     var maintenant: Date { plan.now }
 
     init(village: Village, export: VillageExport, reference: ReferenceData, conseils: AdviceData,
-         profil reglages: Profile, maintenant: Date, fuseau: TimeZone = .current, rythme: Rhythm? = nil) {
+         profil reglages: Profile, maintenant: Date, aujourdhui: Date? = nil, fuseau: TimeZone = .current, rythme: Rhythm? = nil) {
         // Les heures sans jeu suivent le fuseau de l'appareil (le défaut du paquet est Paris, pour des tests reproductibles).
-        var profil = reglages
+        // L'exemple se lit à la date de son export : les réductions se jugent à la date d'aujourd'hui.
+        var profil = aujourdhui.map { reglages.affiche(le: $0, calcule: maintenant) } ?? reglages
         profil.quietHours?.timeZone = fuseau
         // Sans `boosts`, la potion serait ignorée en silence ; sans `assistants`, les services aussi (S6).
         plan = makePlan(for: village, reference: reference, advice: conseils, profile: profil, now: maintenant,

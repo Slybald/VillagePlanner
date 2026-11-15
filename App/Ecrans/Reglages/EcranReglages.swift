@@ -12,7 +12,7 @@ struct EcranReglages: View {
     /// Débogage seulement : `-apropos 1` ouvre « À propos » au lancement (captures).
     private static func cheminDeCapture() -> [String] {
         #if DEBUG
-        return UserDefaults.standard.bool(forKey: "apropos") ? ["apropos"] : []
+        return UserDefaults.standard.bool(forKey: "apropos") ? ["apropos"] : UserDefaults.standard.bool(forKey: "joueur") ? ["joueur"] : []
         #else
         return []
         #endif
@@ -36,6 +36,7 @@ struct EcranReglages: View {
                 seuil($modele.profil)
                 epingles($modele.profil).id("epingles")
                 SectionConseiller().id("conseiller")
+                SectionCompteDeJeu().id("compte")
                 Section {
                     NavigationLink("À propos", value: "apropos").listRowBackground(Theme.Couleur.surface)
                 }
@@ -46,7 +47,9 @@ struct EcranReglages: View {
             .font(Theme.Police.texte)
             .scrollContentBackground(.hidden)
             .pageChantier()
-            .navigationDestination(for: String.self) { _ in EcranAPropos() }
+            .navigationDestination(for: String.self) { page in
+                if page == "joueur" { EcranJoueur() } else { EcranAPropos() }
+            }
             .navigationTitle("Réglages")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { fermer() } } }
@@ -103,6 +106,7 @@ struct EcranReglages: View {
                 Text("Tout est terminé").tag(TownHallThreshold.complete)
                 Text("Héros et labo terminés").tag(TownHallThreshold.heroesAndLab)
             }
+            .pickerStyle(.inline)      // les deux choix en toutes lettres : le menu coupait « Tout est terminé » en très grande police
         } footer: { note("Monter tôt est une stratégie défendue par une partie des joueurs : à toi de choisir quand l'app le conseille.") }
         .listRowBackground(Theme.Couleur.surface)
     }

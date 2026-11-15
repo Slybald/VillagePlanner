@@ -41,10 +41,23 @@ public struct ReponseProfil: Decodable, Sendable, Equatable {
 
 /// Le profil obtenu, prêt à être montré : le profil complet et ce qui change par rapport au profil actuel.
 public struct ProfilPropose: Sendable, Equatable {
+    /// Le profil au moment de la demande ; à la confirmation, `appliqué(sur:)` repart du profil de ce moment-là.
     public let profil: Profile
     /// Une ligne par réglage modifié, composée par l'app (« Orientation : équilibrée → attaque »).
     public let differences: [String]
     public var estVide: Bool { differences.isEmpty }
+    let reponse: ReponseProfil
+    let epinglables: Set<Int>
+    let now: Date
+    let fuseau: TimeZone
+
+    /// Les mêmes réglages demandés, posés sur le profil de maintenant : un réglage modifié entre la demande et la confirmation
+    /// n'est pas écrasé. Sans revérification possible, ou si la réponse ne passe plus, le profil proposé tel quel.
+    public func applique(sur actuel: Profile, reference: ReferenceData) -> Profile {
+        guard case .success(let p) = GardeProfil.verifier(reponse, actuel: actuel, epinglables: epinglables, reference: reference, now: now, fuseau: fuseau)
+        else { return profil }
+        return p.profil
+    }
 }
 
 /// Pourquoi une réponse est rejetée (G2). Jamais montré tel quel.
@@ -109,8 +122,17 @@ public enum GardeProfil {
 
     /// Le texte d'un joueur devenu une donnée : sans chevrons, sur 400 caractères au plus.
     static func assainir(_ texte: String) -> String {
-        String(texte.replacingOccurrences(of: "<", with: " ").replacingOccurrences(of: ">", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines).prefix(phraseMax))
+        String(sansChevrons(texte).trimmingCharacters(in: .whitespacesAndNewlines).prefix(phraseMax))
+    }
+
+    /// Les chevrons ordinaires, pleine chasse (＜ ＞) et en entités HTML (&lt; &gt; &#60; &#62;) deviennent des espaces :
+    /// le texte ne peut pas fermer son bloc.
+    static func sansChevrons(_ texte: String) -> String {
+        var t = texte
+        for e in ["&lt;", "&gt;", "&#60;", "&#62;", "&#x3c;", "&#x3e;", "<", ">", "\u{FF1C}", "\u{FF1E}"] {
+            t = t.replacingOccurrences(of: e, with: " ", options: .caseInsensitive)
+        }
+        return t
     }
 
     /// Le message envoyé : les éléments épinglables, puis la phrase dans son bloc.
@@ -199,7 +221,7 @@ public enum GardeProfil {
         if p.builderReduction != actuel.builderReduction { ajoute("Réduction des ouvriers", texte(actuel.builderReduction), texte(p.builderReduction)) }
         if p.laboratoryReduction != actuel.laboratoryReduction { ajoute("Réduction du laboratoire", texte(actuel.laboratoryReduction), texte(p.laboratoryReduction)) }
 
-        return .success(ProfilPropose(profil: p, differences: lignes))
+        return .success(ProfilPropose(profil: p, differences: lignes, reponse: r, epinglables: epinglables, now: now, fuseau: fuseau))
     }
 
     static func nomOrientation(_ o: Orientation) -> String {

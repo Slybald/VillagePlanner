@@ -81,7 +81,7 @@ private struct Banc {
     let budget: BudgetStore
 
     init(cle: String? = cleFactice, budget depart: Budget = Budget(), reponses: [Reponse] = [], calendrier: Calendar = paris) {
-        defaults = UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!
+        defaults = PreferencesDeTest.neuves()
         budget = BudgetStore(defaults: defaults)
         budget.save(depart)
         transport = FauxTransport(reponses)
@@ -411,7 +411,7 @@ struct Cas: Sendable, CustomTestStringConvertible {
     }
 
     @Test func budget_deuxClientsSimultanes_surLeMemeBudget_jamaisPlusDe30() async {
-        let defaults = UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!
+        let defaults = PreferencesDeTest.neuves()
         let transport = FauxTransport()
         let clients = (0..<2).map { _ in
             ClaudeClient(keys: MemorySecretStore(cleFactice), budget: BudgetStore(defaults: defaults), transport: transport,
@@ -434,7 +434,7 @@ struct Cas: Sendable, CustomTestStringConvertible {
 
     @Test func trousseauEnPanne_distinctDePasDeCle_rienNePart() async {
         let transport = FauxTransport()
-        let client = ClaudeClient(keys: CoffreEnPanne(), budget: BudgetStore(defaults: UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!),
+        let client = ClaudeClient(keys: CoffreEnPanne(), budget: BudgetStore(defaults: PreferencesDeTest.neuves()),
                                   transport: transport, calendar: paris, sleep: { _ in })
         await #expect(throws: ClaudeError.keychainUnavailable) { try await client.checkKey(now: maintenant) }
         #expect(await transport.requetes.isEmpty)
@@ -449,7 +449,7 @@ struct Cas: Sendable, CustomTestStringConvertible {
     }
 
     @Test func budget_relitCeQuIlAEnregistre() {
-        let d = UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!
+        let d = PreferencesDeTest.neuves()
         let b = depart(appels: 7, depense: 12_345)
         BudgetStore(defaults: d).save(b)
         #expect(BudgetStore(defaults: d).load() == b)
@@ -509,7 +509,7 @@ struct Cas: Sendable, CustomTestStringConvertible {
         try cles.delete()
         #expect(try cles.read() == nil)
         let transport = FauxTransport()
-        let client = ClaudeClient(keys: cles, budget: BudgetStore(defaults: UserDefaults(suiteName: "chantier-test-\(UUID().uuidString)")!),
+        let client = ClaudeClient(keys: cles, budget: BudgetStore(defaults: PreferencesDeTest.neuves()),
                                   transport: transport, calendar: paris, sleep: { _ in })
         await #expect(throws: ClaudeError.noKey) { try await client.checkKey(now: maintenant) }
         #expect(await transport.requetes.isEmpty)

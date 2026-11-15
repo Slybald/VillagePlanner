@@ -119,6 +119,7 @@ struct Pastille: View {
             .overlay(Capsule().strokeBorder(Theme.Couleur.surBois.opacity(0.5), lineWidth: 1))
             .fixedSize()
             .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+            .accessibilityHidden(true)      // le niveau est dans le texte de la ligne ou le libellé du terrain
     }
 }
 
@@ -136,6 +137,8 @@ struct Terrain: View {
     let hdv: Int
     var fantome: Int? = nil
     var autour: [Environ] = []
+    /// Ce que VoiceOver dit du terrain : l'HDV et les éléments dont dépend la date (l'image seule ne dit rien).
+    var libelle = ""
 
     @Environment(\.colorScheme) private var schema
     @ScaledMetric(relativeTo: .largeTitle) private var hauteur: CGFloat = 210
@@ -160,7 +163,9 @@ struct Terrain: View {
             .overlay {
                 RoundedRectangle(cornerRadius: Theme.rayon).strokeBorder(Theme.Couleur.bois, lineWidth: Theme.bord * 2)
             }
-            .accessibilityHidden(true)
+            .accessibilityElement()
+            .accessibilityLabel(libelle)
+            .accessibilityHidden(libelle.isEmpty)
     }
 
     /// Deux colonnes de part et d'autre de l'hôtel de ville (la première à gauche, la deuxième à droite…).

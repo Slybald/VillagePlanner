@@ -1,3 +1,5 @@
+<p align="center"><img src="App/Ressources/Assets.xcassets/AppIcon.appiconset/icone-clair.png" width="128" alt="Icône de Chantier : un mètre pliant en forme de flèche"></p>
+
 # Chantier
 
 App iPhone, gratuite et non officielle, pour suivre l'avancement d'un village de Clash of Clans.
@@ -7,6 +9,30 @@ App iPhone, gratuite et non officielle, pour suivre l'avancement d'un village de
 - Elle propose l'ordre des améliorations pour chaque ouvrier, le labo et la maison des familiers.
 - Elle date chaque amélioration et dit combien d'or, d'élixir et d'élixir noir réunir, pour quand.
 - Un conseiller explique le plan en quelques phrases ; les chiffres viennent toujours du moteur de calcul.
+
+<p align="center">
+  <img src="docs/images/cap.png" width="260" alt="Écran Cap : date de fin de l'hôtel de ville, avancement total et consigne">
+  &nbsp;
+  <img src="docs/images/chantier.png" width="260" alt="Écran Chantier : ressources à réunir et couloirs des ouvriers">
+</p>
+
+Captures : village d'exemple inventé.
+
+## Installer
+
+Sans compte payant, avec un Mac et Xcode : suis [docs/installation.md](docs/installation.md).
+
+## Faire l'export dans le jeu
+
+Dans le jeu : ton profil, Réglages > Plus de réglages > Data Export > Copier. Reviens dans l'app et touche Coller. L'export reste sur ton iPhone.
+
+## Le conseiller (facultatif)
+
+Il demande une clé de l'API Anthropic, rangée dans le Trousseau de l'iPhone, avec un budget que tu fixes. Sans clé, tout le reste marche ; avec elle, il explique le plan en quelques phrases (les chiffres viennent du moteur de calcul).
+
+## Le compte de jeu (facultatif)
+
+Une clé de l'API officielle de Supercell, passée par le relais RoyaleAPI, ajoute ton profil de joueur (trophées, ligue, héros équipés). Crée une clé dédiée : voir [docs/cle-api-supercell.md](docs/cle-api-supercell.md).
 
 ## Compiler
 

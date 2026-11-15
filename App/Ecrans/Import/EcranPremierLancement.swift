@@ -5,7 +5,6 @@ import SwiftUI
 /// Aucune autorisation demandée : le bouton système de collage lit sans alerte.
 struct EcranPremierLancement: View {
     @Environment(ModeleApp.self) private var modele
-    @ScaledMetric(relativeTo: .largeTitle) private var titre: CGFloat = 52
     @ScaledMetric(relativeTo: .body) private var pastille: CGFloat = 30
 
     private let etapes = [
@@ -22,7 +21,10 @@ struct EcranPremierLancement: View {
                     Terrain(hdv: 0, fantome: modele.reference?.maxTownHall ?? 1)
                         .padding(.bottom, Theme.Espace.s)
                     Text("Chantier")
-                        .font(Theme.Police.date(titre))
+                        .font(Theme.Police.grandeDate)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                     Text("Copie l'export de ton village dans le jeu, puis reviens ici.")
                         .font(Theme.Police.surtitre)
                         .foregroundStyle(Theme.Couleur.texteDoux)
