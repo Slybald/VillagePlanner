@@ -8,19 +8,43 @@
 
 /* Begin PBXBuildFile section */
 		C4A000000000000000000301 /* ChantierKit in Frameworks */ = {isa = PBXBuildFile; productRef = C4A000000000000000000502 /* ChantierKit */; };
+		C4A000000000000000000311 /* ChantierKit in Frameworks */ = {isa = PBXBuildFile; productRef = C4A000000000000000000503 /* ChantierKit */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C4A000000000000000000604 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C4A000000000000000000701 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C4A000000000000000000602;
+			remoteInfo = ChantierWidget;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		C4A000000000000000000101 /* Chantier.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chantier.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C4A000000000000000000102 /* Chantier.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Chantier.xcconfig; sourceTree = "<group>"; };
 		C4A000000000000000000103 /* Signature.exemple.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signature.exemple.xcconfig; sourceTree = "<group>"; };
 		C4A000000000000000000104 /* ChantierKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = ChantierKit; sourceTree = "<group>"; };
+		C4A000000000000000000105 /* ChantierWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ChantierWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C4A000000000000000000106 /* Chantier.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Chantier.entitlements; sourceTree = "<group>"; };
+		C4A000000000000000000107 /* Widget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Widget-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C4A000000000000000000201 /* App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = App;
+			sourceTree = "<group>";
+		};
+		C4A000000000000000000202 /* Widget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Widget;
+			sourceTree = "<group>";
+		};
+		C4A000000000000000000203 /* Polices */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App/Ressources/Polices;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +58,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C4A000000000000000000307 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C4A000000000000000000311 /* ChantierKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -41,6 +73,8 @@
 			isa = PBXGroup;
 			children = (
 				C4A000000000000000000201 /* App */,
+				C4A000000000000000000202 /* Widget */,
+				C4A000000000000000000203 /* Polices */,
 				C4A000000000000000000403 /* Config */,
 				C4A000000000000000000404 /* Packages */,
 				C4A000000000000000000402 /* Products */,
@@ -51,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				C4A000000000000000000101 /* Chantier.app */,
+				C4A000000000000000000105 /* ChantierWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -60,6 +95,8 @@
 			children = (
 				C4A000000000000000000102 /* Chantier.xcconfig */,
 				C4A000000000000000000103 /* Signature.exemple.xcconfig */,
+				C4A000000000000000000106 /* Chantier.entitlements */,
+				C4A000000000000000000107 /* Widget-Info.plist */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -82,10 +119,12 @@
 				C4A000000000000000000303 /* Sources */,
 				C4A000000000000000000302 /* Frameworks */,
 				C4A000000000000000000304 /* Resources */,
+				C4A000000000000000000310 /* Embarquer le widget (CHANTIER_WIDGETS) */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C4A000000000000000000603 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				C4A000000000000000000201 /* App */,
@@ -98,6 +137,30 @@
 			productReference = C4A000000000000000000101 /* Chantier.app */;
 			productType = "com.apple.product-type.application";
 		};
+		C4A000000000000000000602 /* ChantierWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C4A000000000000000000803 /* Build configuration list for PBXNativeTarget "ChantierWidget" */;
+			buildPhases = (
+				C4A000000000000000000306 /* Sources */,
+				C4A000000000000000000307 /* Frameworks */,
+				C4A000000000000000000308 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C4A000000000000000000202 /* Widget */,
+				C4A000000000000000000203 /* Polices */,
+			);
+			name = ChantierWidget;
+			packageProductDependencies = (
+				C4A000000000000000000503 /* ChantierKit */,
+			);
+			productName = ChantierWidget;
+			productReference = C4A000000000000000000105 /* ChantierWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -109,6 +172,9 @@
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					C4A000000000000000000601 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					C4A000000000000000000602 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -132,6 +198,7 @@
 			projectRoot = "";
 			targets = (
 				C4A000000000000000000601 /* Chantier */,
+				C4A000000000000000000602 /* ChantierWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -144,7 +211,36 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C4A000000000000000000308 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		C4A000000000000000000310 /* Embarquer le widget (CHANTIER_WIDGETS) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embarquer le widget (CHANTIER_WIDGETS)";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Le widget est embarqué seulement si CHANTIER_WIDGETS=YES. Avec NO il est compilé sans signature mais n'entre pas dans l'app.\nplugins=\"$TARGET_BUILD_DIR/$PLUGINS_FOLDER_PATH\"\nif [ \"$CHANTIER_WIDGETS\" = \"YES\" ]; then\n  mkdir -p \"$plugins\"\n  rsync -a --delete \"$BUILT_PRODUCTS_DIR/ChantierWidget.appex/\" \"$plugins/ChantierWidget.appex/\"\nelse\n  rm -rf \"$plugins/ChantierWidget.appex\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		C4A000000000000000000303 /* Sources */ = {
@@ -154,7 +250,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C4A000000000000000000306 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C4A000000000000000000603 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C4A000000000000000000602 /* ChantierWidget */;
+			targetProxy = C4A000000000000000000604 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		C4A000000000000000000901 /* Debug */ = {
@@ -282,9 +393,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "$(CHANTIER_ENTITLEMENTS_$(CHANTIER_WIDGETS))";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Chantier;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -296,7 +409,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = fr.slybald.chantier;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -316,9 +429,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "$(CHANTIER_ENTITLEMENTS_$(CHANTIER_WIDGETS))";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Chantier;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -330,7 +445,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = fr.slybald.chantier;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -339,6 +454,66 @@
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		C4A000000000000000000905 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "$(CHANTIER_ENTITLEMENTS_$(CHANTIER_WIDGETS))";
+				CODE_SIGNING_ALLOWED = "$(CHANTIER_SIGNATURE_WIDGET_$(CHANTIER_WIDGETS))";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Widget-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Chantier;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		C4A000000000000000000906 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "$(CHANTIER_ENTITLEMENTS_$(CHANTIER_WIDGETS))";
+				CODE_SIGNING_ALLOWED = "$(CHANTIER_SIGNATURE_WIDGET_$(CHANTIER_WIDGETS))";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Widget-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Chantier;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
@@ -367,6 +542,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C4A000000000000000000803 /* Build configuration list for PBXNativeTarget "ChantierWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C4A000000000000000000905 /* Debug */,
+				C4A000000000000000000906 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -378,6 +562,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		C4A000000000000000000502 /* ChantierKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ChantierKit;
+		};
+		C4A000000000000000000503 /* ChantierKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ChantierKit;
 		};

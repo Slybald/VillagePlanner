@@ -7,7 +7,9 @@ struct ChantierApp: App {
     @State private var conseil = ModeleConseil()
     @Environment(\.scenePhase) private var phase
 
-    init() { Theme.Police.enregistrer() }
+    init() {
+        Theme.Police.enregistrer()
+    }
 
     var body: some Scene {
         WindowGroup {
