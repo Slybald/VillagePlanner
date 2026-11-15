@@ -3,7 +3,7 @@ import SwiftUI
 
 @main
 struct ChantierApp: App {
-    @State private var modele = ModeleApp()
+    @State private var modele = ModeleApp.partage
     @State private var conseil = ModeleConseil()
     @Environment(\.scenePhase) private var phase
 
