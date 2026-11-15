@@ -12,11 +12,14 @@ public enum ResultatImport: Equatable, Sendable {
     /// Valide, enregistre et met l'index à jour. Ne plante sur aucun texte (borné par `VillageExport.parse`).
     /// `actualiser` est appelé UNE fois, avec la photo la plus récente, quand l'import a réussi (ou que l'export était
     /// déjà là) et jamais quand il est refusé : c'est là que l'app recalcule, recharge le widget et replanifie.
+    /// `actions` : une photo nouvelle efface d'abord les actions « Lancé » qui ne lui sont pas postérieures (L3).
     public static func importer(_ texte: String, dans historique: HistoryStore, context: HistoryContext,
+                                actions: LocalActionStore? = nil,
                                 actualiser: (Snapshot, VillageExport) -> Void = { _, _ in }) -> ResultatImport {
         let resultat: SnapshotStore.Outcome
         do { resultat = try historique.add(texte, context: context).outcome } catch { return .refuse(error) }
         guard let derniere = historique.photos.latest() else { return .refuse(.cannotWrite) }
+        if case .created(let photo) = resultat { actions?.purge(importedAt: photo.date) }   // la photo se relit : elle fait foi
         actualiser(derniere.snapshot, derniere.export)
         switch resultat {
         case .created(let photo): return .enregistree(photo, plusRecente: photo == derniere.snapshot)

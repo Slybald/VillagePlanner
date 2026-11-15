@@ -10,7 +10,9 @@ enum PontWidget {
     private static let cotePixels: CGFloat = 176
 
     /// `decalage` : en débogage seulement, avance les dates du plan de l'exemple jusqu'à maintenant (captures du widget).
-    static func publier(plan: Plan, village: Village, reference: ReferenceData, partage: URL?, decalage: TimeInterval = 0) {
+    /// `lancees` : les marques « Lancé » (T28), pour que le widget numérote les couloirs comme l'écran Chantier.
+    static func publier(plan: Plan, village: Village, reference: ReferenceData, partage: URL?, decalage: TimeInterval = 0,
+                        lancees: LocalActionsResult? = nil) {
         guard let partage else { return }
         let dossierImages = WidgetEtat.dossierImages(dans: partage)
         try? FileManager.default.removeItem(at: dossierImages)
@@ -30,7 +32,7 @@ enum PontWidget {
             return (try? rendu.write(to: dossierImages.appending(path: nom), options: .atomic)) == nil ? nil : nom
         }
 
-        let postes = Couloir.de(plan, village: village).map { couloir in
+        let postes = Couloir.de(plan, village: village, lancees: lancees).map { couloir in
             WidgetEtat.Poste(
                 genre: couloir.poste, numero: couloir.numero,
                 imageLibre: image(couloir.emblem, couloir.niveauEmblem),

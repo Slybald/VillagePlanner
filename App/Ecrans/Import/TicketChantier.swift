@@ -7,11 +7,14 @@ struct TicketAffiche: Identifiable {
     let diff: PhotoDiff
     /// Pour chaque amélioration terminée : le niveau le plus haut du type dans la nouvelle photo (pour son image).
     let niveaux: [Int: Int]
+    /// Les écarts entre les marques « Lancé » que l'import a effacées et ce que montre l'export (L7).
+    let ecarts: [LaunchGap]
     var id: Date { photo.date }
 
-    init(photo: Snapshot, diff: PhotoDiff, village: Village) {
+    init(photo: Snapshot, diff: PhotoDiff, village: Village, ecarts: [LaunchGap] = []) {
         self.photo = photo
         self.diff = diff
+        self.ecarts = ecarts
         niveaux = Dictionary(uniqueKeysWithValues: diff.finished.map { ($0.itemID, village.niveau(de: $0.itemID)) })
     }
 }
@@ -79,6 +82,8 @@ struct TicketChantier: View {
                     if let detail = autres { Text(detail).font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux) }
                 }
 
+                if !ticket.ecarts.isEmpty { ecarts }
+
                 Button("Fermer") { fermer() }
                     .buttonStyle(.borderedProminent)
                     .buttonBorderShape(.capsule)
@@ -119,6 +124,38 @@ struct TicketChantier: View {
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// L7 : ce que tu avais marqué « Lancé » et que l'export ne montre pas, et l'inverse. L'export fait foi : c'est dit, pas reproché.
+    private var ecarts: some View {
+        VStack(alignment: .leading, spacing: Theme.Espace.s) {
+            Text("Écarts avec tes « Lancé »").etiquetteChantier()
+            ForEach(Array(ticket.ecarts.enumerated()), id: \.offset) { _, ecart in
+                let nom = reference.item(ecart.itemID)?.name ?? "#\(ecart.itemID)"
+                let fois = ecart.count > 1 ? " × \(ecart.count)" : ""
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Espace.s) {
+                    Image(systemName: ecart.kind == .markedNotRunning ? "questionmark.circle" : "plus.circle")
+                        .foregroundStyle(Theme.Couleur.elixirTexte)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(nom) \(ecart.level - 1) → \(ecart.level)\(fois)").font(Theme.Police.texte)
+                        Text(ecart.kind == .markedNotRunning ? "marquée lancée, mais pas en cours dans l'export"
+                                                             : "en cours dans l'export, sans avoir été marquée")
+                            .font(Theme.Police.detail)
+                            .foregroundStyle(Theme.Couleur.texteDoux)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+            Text("L'export fait foi : tes marques avant lui sont effacées.")
+                .font(Theme.Police.detail)
+                .foregroundStyle(Theme.Couleur.texteDoux)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Theme.Espace.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tuileChantier()
     }
 
     /// « 5 niveaux gagnés · 2 améliorations lancées ».

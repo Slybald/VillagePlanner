@@ -10,6 +10,8 @@ struct LigneFile: View {
     /// L'amélioration que le joueur peut lancer dès maintenant : l'accent est pour elle.
     var alancer = false
     var taille: CGFloat = 48
+    /// Marquée « Lancé » par le joueur (T28) : le minuteur vient de l'app, pas de la photo. Elle se distingue.
+    var lancee: LocalLaunch? = nil
 
     @ScaledMetric(relativeTo: .body) private var image: CGFloat = 1
     @Environment(\.dynamicTypeSize) private var tailleTexte
@@ -30,6 +32,7 @@ struct LigneFile: View {
                     .foregroundStyle(Theme.Couleur.texteDoux)
                     .accessibilityLabel("du niveau \(pas.step.level - 1) au niveau \(pas.step.level)")
                 if let cout { Text(cout).font(Theme.Police.chiffreDetail).foregroundStyle(Theme.Couleur.texteDoux) }
+                if lancee != nil { MarqueLancee() }
                 Text(quand)
                     .font(Theme.Police.detail.weight(.semibold))
                     .foregroundStyle(alancer ? Theme.Couleur.elixirTexte : enCours ? Theme.Couleur.elixirTexte : Theme.Couleur.texteDoux)
@@ -59,5 +62,18 @@ struct LigneFile: View {
         }
         return pas.start <= plan.maintenant ? "À lancer maintenant"
                                              : "À lancer dès " + Lisible.moment(pas.start, now: plan.maintenant, timeZone: plan.fuseau)
+    }
+}
+
+/// « marquée lancée » : une pastille en pointillés, l'empreinte d'un geste du joueur et non d'une photo.
+struct MarqueLancee: View {
+    var body: some View {
+        Label("marquée lancée", systemImage: "hand.tap.fill")
+            .font(Theme.Police.badge)
+            .foregroundStyle(Theme.Couleur.elixirTexte)
+            .padding(.horizontal, Theme.Espace.s)
+            .padding(.vertical, 2)
+            .overlay(Capsule().strokeBorder(Theme.Couleur.elixirTexte, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

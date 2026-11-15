@@ -23,19 +23,19 @@ struct Couloir: Identifiable {
     static let cabane = 1_000_015, labo = 1_000_007, maisonDesFamiliers = 1_000_068
 
     /// Les couloirs du plan : tous les ouvriers (même sans rien à faire), le labo et les familiers s'ils existent.
-    static func de(_ plan: Plan, village: Village) -> [Couloir] {
+    /// `lancees` : une amélioration marquée « Lancé » reste dans le couloir où on l'a marquée (`displayLanes`, règle L8).
+    static func de(_ plan: Plan, village: Village, lancees: LocalActionsResult? = nil) -> [Couloir] {
         func couloirs(_ poste: WorkerKind, emblem: Int) -> [Couloir] {
             let niveau = max(village.niveau(de: emblem), 1)
-            let pas = plan.steps.filter { $0.worker == poste }
-            let n = max(village.workers[poste] ?? 0, (pas.map(\.lane).max() ?? -1) + 1)
-            return (0..<n).map { numero in
-                let siens = pas.filter { $0.lane == numero }
-                let photo = siens.filter(\.fromSnapshot)
-                return Couloir(poste: poste, numero: numero, emblem: emblem, niveauEmblem: niveau,
-                               enCours: photo.first { $0.end > plan.now },
-                               fini: photo.filter { $0.end <= plan.now }.max { $0.end < $1.end },
-                               file: siens.filter { !$0.fromSnapshot }.sorted { $0.start < $1.start })
-            }
+            // Sans marque, les couloirs de la simulation ; avec, chaque marque dans le couloir touché (L8).
+            return displayLanes(of: plan, worker: poste, posts: village.workers[poste] ?? 0, launches: lancees)
+                .enumerated().map { numero, siens in
+                    let photo = siens.filter(\.fromSnapshot)
+                    return Couloir(poste: poste, numero: numero, emblem: emblem, niveauEmblem: niveau,
+                                   enCours: photo.first { $0.end > plan.now },
+                                   fini: photo.filter { $0.end <= plan.now }.max { $0.end < $1.end },
+                                   file: siens.filter { !$0.fromSnapshot }.sorted { $0.start < $1.start })
+                }
         }
         return couloirs(.builder, emblem: cabane) + couloirs(.laboratory, emblem: labo)
             + couloirs(.petHouse, emblem: maisonDesFamiliers)

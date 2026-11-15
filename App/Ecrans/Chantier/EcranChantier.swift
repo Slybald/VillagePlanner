@@ -6,6 +6,8 @@ struct EcranChantier: View {
     let affiche: VillageAffiche
     let reference: ReferenceData
 
+    @Environment(ModeleApp.self) private var modele
+    @Environment(\.accessibilityReduceMotion) private var reduire
     @State private var ouverts: Set<String> = Self.ouvertsDeCapture()
 
     /// Débogage seulement : `-couloir <poste-numéro>` (par exemple `builder-0`) déroule ce couloir au lancement (captures).
@@ -41,15 +43,20 @@ struct EcranChantier: View {
     }
 
     private func planning(_ plan: PlanAffiche) -> some View {
-        let couloirs = Couloir.de(plan.plan, village: affiche.village)
+        let couloirs = Couloir.de(plan.plan, village: affiche.village, lancees: affiche.lancees)
         return VStack(alignment: .leading, spacing: 0) {
             if affiche.estExemple { MarqueExemple() }
             VStack(alignment: .leading, spacing: Theme.Espace.xl) {
                 BlocAReunir(plan: plan, village: affiche.village)
                 VStack(alignment: .leading, spacing: Theme.Espace.s) {
                     Text("Couloirs").etiquetteChantier()
+                    if let retiree = modele.retiree { annulerRetrait(retiree) }
+                    if let refus = modele.refusLance {
+                        Text(refus).font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     ForEach(couloirs) { couloir in
-                        CarteCouloir(couloir: couloir, plan: plan, reference: reference, ouvert: Binding(
+                        CarteCouloir(couloir: couloir, plan: plan, reference: reference, lancees: affiche.lancees, ouvert: Binding(
                             get: { ouverts.contains(couloir.id) },
                             set: { if $0 { ouverts.insert(couloir.id) } else { ouverts.remove(couloir.id) } }))
                             .id(couloir.id)
@@ -59,5 +66,20 @@ struct EcranChantier: View {
             .padding(.horizontal, Theme.Espace.marge)
             .padding(.vertical, Theme.Espace.l)
         }
+    }
+
+    /// Une marque « Lancé » vient d'être retirée : on peut la remettre, tant qu'on n'a rien marqué ni importé d'autre.
+    private func annulerRetrait(_ action: LocalAction) -> some View {
+        let nom = reference.item(action.itemID)?.name ?? "#\(action.itemID)"
+        return HStack(spacing: Theme.Espace.m) {
+            Text("Marque retirée : \(nom) \(action.level - 1) → \(action.level)")
+                .font(Theme.Police.detail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Annuler") { withAnimation(reduire ? nil : .snappy) { modele.annulerRetrait() } }
+                .font(Theme.Police.chiffre)
+        }
+        .padding(Theme.Espace.m)
+        .tuileChantier()
+        .transition(.opacity)
     }
 }
