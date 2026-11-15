@@ -26,11 +26,14 @@ public struct LocalAction: Codable, Sendable, Hashable, Identifiable {
     /// Le niveau que l'amélioration fait atteindre.
     public let level: Int
     public let start: Date
+    /// Le couloir où le joueur l'a marquée (affichage seulement : la simulation numérote les couloirs à sa façon).
+    public let lane: Int?
 
-    public init(itemID: Int, level: Int, start: Date) {
+    public init(itemID: Int, level: Int, start: Date, lane: Int? = nil) {
         self.itemID = itemID
         self.level = level
         self.start = start
+        self.lane = lane
     }
 
     public var id: String { "\(itemID)-\(level)-\(Int(start.timeIntervalSince1970))" }

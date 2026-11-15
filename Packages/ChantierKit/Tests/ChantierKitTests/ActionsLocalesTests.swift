@@ -31,6 +31,9 @@ import Testing
         try historique.photos.save(texte)
         let store = LocalActionStore(root: dossier.url)
         let a = Self.action(P.cannon, 3, at: 60)
+        let surCouloir = LocalAction(itemID: P.king, level: 2, start: S.at(61), lane: 2)    // le couloir est gardé aussi
+        #expect(store.save([a, surCouloir]))
+        #expect(store.load() == [a, surCouloir])
         #expect(store.save([a]))
         #expect(store.load() == [a])
         // La photo est relue à l'octet près, et le fichier des actions est à côté du dossier des photos, pas dedans.

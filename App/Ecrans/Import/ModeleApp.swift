@@ -6,6 +6,7 @@ import UserNotifications
 
 /// Ce que les écrans montrent : un village calculé, et d'où il vient.
 struct VillageAffiche {
+    /// La photo plus les améliorations marquées « Lancé » (T28) : c'est lui que les écrans, le plan et le widget lisent.
     let village: Village
     let rapport: ProgressReport
     /// nil pour le village d'exemple, qui n'est jamais enregistré.
@@ -14,7 +15,13 @@ struct VillageAffiche {
     var plan: PlanAffiche? = nil
     /// Les niveaux gagnés depuis la photo précédente (pour le conseiller) ; nil quand il n'y en a pas.
     var changements: [ChangementPhoto]? = nil
+    /// Le village de la photo seule, et ce que les actions « Lancé » y ont changé (L2) ; nil sans référence.
+    var villagePhoto: Village? = nil
+    var lancees: LocalActionsResult? = nil
     var estExemple: Bool { photo == nil }
+
+    /// L'action « Lancé » qui a produit ce pas en cours ; nil pour un minuteur lu dans la photo.
+    func lancement(_ pas: ScheduledStep) -> LocalLaunch? { pas.fromSnapshot ? lancees?.launch(of: pas.step) : nil }
 }
 
 /// Un message au-dessus de l'écran : ce qui s'est passé, ce que l'app a gardé, quoi faire.
@@ -66,6 +73,13 @@ final class ModeleApp {
     var historiqueOuvert = false
     /// Le ticket de chantier du dernier import ; nil une fois fermé (il ne revient pas pour cette photo).
     var ticket: TicketAffiche?
+    /// Les améliorations marquées « Lancé » (T28). Gardées à côté des photos ; pour l'exemple, en mémoire seulement.
+    private(set) var actions: [LocalAction] = []
+    /// La dernière marque retirée, tant qu'on peut l'annuler.
+    private(set) var retiree: LocalAction?
+    /// Pourquoi la dernière marque a été refusée (écran Chantier) ; nil une fois une marque acceptée.
+    private(set) var refusLance: String?
+    private let actionsStore: LocalActionStore
     /// Ce qui a monté de niveau au dernier import (type → nouveau niveau → ancien), pour l'animation.
     private var montees: [Int: [Int: Int]] = [:]
     /// Les montées déjà jouées, une fois par endroit.
@@ -135,6 +149,7 @@ final class ModeleApp {
         }
         self.partage = partage
         historique = HistoryStore(root: racine)
+        actionsStore = LocalActionStore(root: racine)
         let lectures = HistoriqueJoueur(root: racine)
         joueur = lectures
         #if DEBUG
@@ -167,6 +182,21 @@ final class ModeleApp {
         }
         #endif
 
+        actions = actionsStore.load()
+        var actionsExemple: [LocalAction] = []
+        #if DEBUG
+        // Captures : `-actions-b64 <JSON en base 64>` (liste de `LocalAction`, dates en secondes) : des marques « Lancé »
+        // gardées dans le dossier jetable avant l'import (écarts du ticket), ou en mémoire pour l'exemple.
+        if let b64 = arguments.string(forKey: "actions-b64"), let data = Data(base64Encoded: b64) {
+            let d = JSONDecoder()
+            d.dateDecodingStrategy = .secondsSince1970
+            if let lues = try? d.decode([LocalAction].self, from: data) {
+                actionsExemple = lues
+                if !recuperer { actions = lues; actionsStore.save(lues) }
+            }
+        }
+        #endif
+
         if !fichiersDebug.isEmpty {
             for chemin in fichiersDebug {
                 if let texte = try? String(contentsOfFile: chemin, encoding: .utf8) { importer(texte) }
@@ -180,7 +210,7 @@ final class ModeleApp {
             #if DEBUG
             widgetExemple = arguments.bool(forKey: "widget-exemple")
             #endif
-            chargerExemple(retenir: false)             // `-exemple 1` : pour les captures, rien n'est retenu
+            chargerExemple(retenir: false, actions: actionsExemple)   // `-exemple 1` : pour les captures, rien n'est retenu
         } else if let derniere = store.latest() {
             affiche = calculer(derniere.export, photo: derniere.snapshot)
         } else if reglages.bool(forKey: Self.cleExemple) {
@@ -201,7 +231,12 @@ final class ModeleApp {
     func importer(_ texte: String) -> String {
         guard let contexte else { return "Les données du jeu sont illisibles : réinstalle l'app" }
         let avant = affiche?.estExemple == false ? affiche?.village : nil   // depuis l'exemple : rien à animer
-        let resultat = ResultatImport.importer(texte, dans: historique, context: contexte) { derniere, export in
+        let marquees = actionsStore.load()
+        // L3 : l'import efface les actions « Lancé » qui ne sont pas postérieures à l'export (celles de l'exemple partent aussi).
+        let resultat = ResultatImport.importer(texte, dans: historique, context: contexte, actions: actionsStore) { derniere, export in
+            actions = actionsStore.load()
+            retiree = nil
+            refusLance = nil
             affiche = calculer(export, photo: derniere)    // recalcule, recharge le widget, replanifie les notifications
         }
         switch resultat {
@@ -219,8 +254,13 @@ final class ModeleApp {
                 if plusRecente {
                     retour = nil
                     // Le ticket : ce qui a changé depuis la photo d'avant. Rien pour la première photo.
+                    // L7 : les écarts entre les marques effacées et ce que montre l'export.
+                    let effacees = marquees.filter { !actions.contains($0) }
+                    let ecarts = affiche?.villagePhoto.flatMap { nouveau in
+                        villagePrecedent(avant: photo, reference: contexte.reference).map { launchGaps(erased: effacees, old: $0, new: nouveau) }
+                    } ?? []
                     ticket = historique.ticket(for: photo, context: contexte).flatMap { diff in
-                        affiche.map { TicketAffiche(photo: photo, diff: diff, village: $0.village) }
+                        affiche.map { TicketAffiche(photo: photo, diff: diff, village: $0.village, ecarts: ecarts) }
                     }
                 } else {
                     retour = Retour(titre: "Photo plus ancienne", detail: "Elle est gardée, mais l'écran montre ta photo la plus récente.", estErreur: false)
@@ -253,7 +293,10 @@ final class ModeleApp {
     // MARK: Exemple
 
     /// Le village embarqué : en mémoire seulement, jamais dans les photos.
-    func chargerExemple(retenir: Bool = true) {
+    /// `actions` : les marques « Lancé » de l'exemple, en mémoire (celles des vraies photos ne s'y appliquent pas).
+    func chargerExemple(retenir: Bool = true, actions: [LocalAction] = []) {
+        self.actions = actions
+        retiree = nil
         guard let url = Bundle.main.url(forResource: "exemple-village", withExtension: "json"),
               let texte = try? String(contentsOf: url, encoding: .utf8),
               let export = try? VillageExport.parse(texte) else { return }
@@ -265,18 +308,27 @@ final class ModeleApp {
     private func calculer(_ export: VillageExport, photo: Snapshot?) -> VillageAffiche? {
         guard let reference else { return nil }
         exportCourant = export
-        let village = Village(export: export, reference: reference, joueur: equipements)
-        let changements = photo.flatMap { villagePrecedent(avant: $0, reference: reference) }.map { village.changements(depuis: $0) }
+        let villagePhoto = Village(export: export, reference: reference, joueur: equipements)
+        let changements = photo.flatMap { villagePrecedent(avant: $0, reference: reference) }.map { villagePhoto.changements(depuis: $0) }
+        return afficher(villagePhoto, export: export, photo: photo, changements: changements, reference: reference)
+    }
+
+    /// La photo plus les actions « Lancé », son plan, et ce qui en dépend hors de l'app (widget, notifications).
+    private func afficher(_ villagePhoto: Village, export: VillageExport, photo: Snapshot?, changements: [ChangementPhoto]?,
+                          reference: ReferenceData) -> VillageAffiche {
+        let lancees = villagePhoto.applying(actions, reference: reference, profile: profil)
+        let village = lancees.village
         let plan = plan(village: village, export: export, reference: reference, estExemple: photo == nil)
-        publierAuWidget(plan: plan?.plan, village: village, reference: reference, photo: photo)
+        publierAuWidget(plan: plan?.plan, village: village, reference: reference, photo: photo, lancees: lancees)
         planifierNotifications(plan: plan?.plan, estExemple: photo == nil)    // chaque import annule et replanifie
         return VillageAffiche(village: village, rapport: progress(of: village, reference: reference), photo: photo,
-                              plan: plan, changements: changements)
+                              plan: plan, changements: changements, villagePhoto: villagePhoto, lancees: lancees)
     }
 
     /// Chaque photo affichée (import, suppression, lancement) remet l'état du widget d'accord et recharge sa chronologie.
     /// L'exemple n'est jamais publié, sauf en débogage avec `-widget-exemple 1`.
-    private func publierAuWidget(plan: Plan?, village: Village, reference: ReferenceData, photo: Snapshot?) {
+    private func publierAuWidget(plan: Plan?, village: Village, reference: ReferenceData, photo: Snapshot?,
+                                 lancees: LocalActionsResult? = nil) {
         var decalage: TimeInterval = 0
         #if DEBUG
         if photo == nil, widgetExemple, let plan { decalage = Date().timeIntervalSince(plan.now) } else if photo == nil { return }
@@ -284,7 +336,8 @@ final class ModeleApp {
         if photo == nil { return }
         #endif
         guard let plan else { PontWidget.retirer(partage: partage); return }
-        PontWidget.publier(plan: plan, village: village, reference: reference, partage: partage, decalage: decalage)
+        PontWidget.publier(plan: plan, village: village, reference: reference, partage: partage, decalage: decalage,
+                           lancees: lancees)
     }
 
     // MARK: Notifications
@@ -412,10 +465,50 @@ final class ModeleApp {
     /// Au retour au premier plan : les postes libérés, les échéances et la consigne suivent l'heure.
     func rafraichirPlan() {
         guard let affiche, let reference, let exportCourant else { return }
-        self.affiche = VillageAffiche(village: affiche.village, rapport: affiche.rapport, photo: affiche.photo,
-                                      plan: plan(village: affiche.village, export: exportCourant, reference: reference,
-                                                 estExemple: affiche.estExemple),
-                                      changements: affiche.changements)
+        // L6 : les actions « Lancé » se réappliquent avec le profil du moment.
+        guard let villagePhoto = affiche.villagePhoto else { return }
+        self.affiche = afficher(villagePhoto, export: exportCourant, photo: affiche.photo, changements: affiche.changements,
+                                reference: reference)
+    }
+
+    // MARK: « Lancé » (T28)
+
+    /// Marque lancée l'amélioration conseillée d'un poste libre, maintenant. Rien n'est écrit dans la photo.
+    /// Refusée (poste occupé, exemplaire introuvable) : un message, et rien ne change.
+    func marquerLance(_ pas: ScheduledStep, couloir: Int? = nil) {
+        guard let affiche, let reference, let villagePhoto = affiche.villagePhoto else { return }
+        let action = LocalAction(itemID: pas.step.itemID, level: pas.step.level,
+                                 start: PlanAffiche.horloge(village: villagePhoto, estExemple: affiche.estExemple), lane: couloir)
+        let essai = villagePhoto.applying(actions + [action], reference: reference, profile: profil)
+        if let refus = essai.refused.first(where: { $0.action == action }) {
+            refusLance = switch refus.reason {
+            case .postBusy: "Pas marquée : d'après ta photo, aucun poste n'est libre pour elle."
+            case .noIdleCopy: "Pas marquée : ta photo n'a pas d'exemplaire prêt pour ce niveau."
+            case .beforeSnapshot: "Pas marquée : ta photo est plus récente, elle fait foi."
+            }
+            return
+        }
+        refusLance = nil
+        retiree = nil
+        changerActions(actions + [action])
+    }
+
+    /// Retire une marque « Lancé » (geste sur le couloir) ; `annulerRetrait()` la remet.
+    func retirerLance(_ action: LocalAction) {
+        changerActions(actions.filter { $0 != action })
+        retiree = action
+    }
+
+    func annulerRetrait() {
+        guard let retiree else { return }
+        self.retiree = nil
+        changerActions(actions + [retiree])
+    }
+
+    private func changerActions(_ nouvelles: [LocalAction]) {
+        actions = nouvelles
+        if affiche?.estExemple == false { actionsStore.save(nouvelles) }    // l'exemple ne retient rien
+        rafraichirPlan()
     }
 
     /// Le tag du joueur, lu dans la dernière photo (jamais en dur) ; nil sans photo lisible. Sert à l'API officielle (T29).

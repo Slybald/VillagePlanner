@@ -20,15 +20,21 @@ struct Couloir: Identifiable {
     /// Le poste est libre à la date du calcul : rien n'y tourne.
     var estLibre: Bool { enCours == nil }
 
+    private func renumerote(_ n: Int) -> Couloir {
+        Couloir(poste: poste, numero: n, emblem: emblem, niveauEmblem: niveauEmblem, enCours: enCours, fini: fini, file: file)
+    }
+
     static let cabane = 1_000_015, labo = 1_000_007, maisonDesFamiliers = 1_000_068
 
     /// Les couloirs du plan : tous les ouvriers (même sans rien à faire), le labo et les familiers s'ils existent.
-    static func de(_ plan: Plan, village: Village) -> [Couloir] {
+    /// `lancees` : une amélioration marquée « Lancé » reste dans le couloir où on l'a marquée (la simulation ne connaît
+    /// pas l'identité des ouvriers : les numéros des couloirs sont libres).
+    static func de(_ plan: Plan, village: Village, lancees: LocalActionsResult? = nil) -> [Couloir] {
         func couloirs(_ poste: WorkerKind, emblem: Int) -> [Couloir] {
             let niveau = max(village.niveau(de: emblem), 1)
             let pas = plan.steps.filter { $0.worker == poste }
             let n = max(village.workers[poste] ?? 0, (pas.map(\.lane).max() ?? -1) + 1)
-            return (0..<n).map { numero in
+            var liste = (0..<n).map { numero in
                 let siens = pas.filter { $0.lane == numero }
                 let photo = siens.filter(\.fromSnapshot)
                 return Couloir(poste: poste, numero: numero, emblem: emblem, niveauEmblem: niveau,
@@ -36,6 +42,25 @@ struct Couloir: Identifiable {
                                fini: photo.filter { $0.end <= plan.now }.max { $0.end < $1.end },
                                file: siens.filter { !$0.fromSnapshot }.sorted { $0.start < $1.start })
             }
+            // Une marque « Lancé » posée après un minuteur fini fait, dans la simulation, un couloir de plus que de postes
+            // (elle part de la date de la photo). Ce couloir se fond dans un couloir libre : celui dont la file commence le
+            // plus tard, puisque les autres ont été pris maintenant par les ouvriers vraiment libres.
+            let postes = village.workers[poste] ?? 0
+            while liste.count > postes, let i = liste.lastIndex(where: { c in c.numero >= postes && c.enCours.map { lancees?.launch(of: $0.step) != nil } ?? false }),
+                  let j = liste.indices.filter({ liste[$0].enCours == nil && $0 != i })
+                      .max(by: { (liste[$0].file.first?.start ?? .distantFuture) < (liste[$1].file.first?.start ?? .distantFuture) }) {
+                liste[j] = Couloir(poste: poste, numero: liste[j].numero, emblem: emblem, niveauEmblem: niveau,
+                                   enCours: liste[i].enCours, fini: liste[j].fini,
+                                   file: (liste[i].file + liste[j].file).sorted { $0.start < $1.start })
+                liste.remove(at: i)
+            }
+            // Puis elle va dans le couloir où on l'a marquée (échange de numéros avec un couloir libre).
+            for i in liste.indices {
+                guard let pas = liste[i].enCours, let voulu = lancees?.launch(of: pas.step)?.action.lane, voulu != liste[i].numero,
+                      let j = liste.firstIndex(where: { $0.numero == voulu && $0.enCours == nil }) else { continue }
+                (liste[i], liste[j]) = (liste[i].renumerote(voulu), liste[j].renumerote(liste[i].numero))
+            }
+            return liste.sorted { $0.numero < $1.numero }.enumerated().map { $1.renumerote($0) }
         }
         return couloirs(.builder, emblem: cabane) + couloirs(.laboratory, emblem: labo)
             + couloirs(.petHouse, emblem: maisonDesFamiliers)

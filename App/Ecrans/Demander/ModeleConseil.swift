@@ -4,7 +4,7 @@ import Observation
 import Synchronization
 
 /// Le conseil du modèle, gardé sous sa clé (T20, PLAN §6.3). Il est demandé à l'import et quand la clé du conseil change
-/// (photo, profil, versions des données, jour), à la prochaine ouverture de l'écran Cap ; rouvrir l'app sans changement
+/// (photo, profil, actions « Lancé », versions des données, jour), à la prochaine ouverture de l'écran Cap ; rouvrir l'app sans changement
 /// n'appelle rien. Tout échec laisse la consigne du moteur à l'écran (G3) : ce modèle ne montre jamais une erreur.
 @MainActor @Observable
 final class ModeleConseil {
@@ -45,7 +45,8 @@ final class ModeleConseil {
     /// La clé du conseil pour ce village ; nil quand il n'y a rien à demander (pas de plan, village d'exemple).
     func cle(_ affiche: VillageAffiche, reference: ReferenceData, conseilsDate: String) -> String? {
         guard let plan = affiche.plan, let photo = affiche.photo?.date ?? (exempleAutorise ? affiche.village.date : nil) else { return nil }
-        return CleConseil.make(photo: photo, profil: plan.profil, referenceCommit: reference.source.commit, conseilsDate: conseilsDate,
+        return CleConseil.make(photo: photo, profil: plan.profil,
+                               actionsLocales: affiche.lancees?.applied.map(\.action.adviceKey) ?? [], referenceCommit: reference.source.commit, conseilsDate: conseilsDate,
                                etatDuPlan: ResumeConseil.etatDuPlan(plan.plan, reference: reference, photo: plan.photo),
                                now: plan.maintenant, timeZone: plan.fuseau)
     }

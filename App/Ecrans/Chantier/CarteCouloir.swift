@@ -7,7 +7,11 @@ struct CarteCouloir: View {
     let couloir: Couloir
     let plan: PlanAffiche
     let reference: ReferenceData
+    /// Les marques « Lancé » appliquées au village (T28).
+    var lancees: LocalActionsResult? = nil
     @Binding var ouvert: Bool
+
+    @Environment(ModeleApp.self) private var modele
 
     @Environment(\.accessibilityReduceMotion) private var reduire
     @Environment(\.dynamicTypeSize) private var tailleTexte
@@ -66,16 +70,50 @@ struct CarteCouloir: View {
     /// En cours : l'amélioration, puis la suivante. Libre : « libre depuis… », puis l'amélioration conseillée.
     @ViewBuilder private var corps: some View {
         if let encours = couloir.enCours {
-            LigneFile(pas: encours, reference: reference, plan: plan)
+            enCours(encours)
             if !ouvert, let suivant = couloir.file.first { puis(suivant) }
         } else {
             libre
             if !ouvert, let conseillee = couloir.file.first {
                 Filet().padding(.vertical, Theme.Espace.s)
                 LigneFile(pas: conseillee, reference: reference, plan: plan, alancer: conseillee.start <= plan.maintenant, taille: 40)
+                if conseillee.start <= plan.maintenant { boutonLance(conseillee) }
                 if let suivant = couloir.file.dropFirst().first { puis(suivant).padding(.top, Theme.Espace.s) }
             }
         }
+    }
+
+    /// L'amélioration en cours. Marquée « Lancé » : un appui long (ou l'action d'accessibilité) retire la marque.
+    @ViewBuilder private func enCours(_ pas: ScheduledStep) -> some View {
+        if let lancee = lancees?.launch(of: pas.step), pas.fromSnapshot {
+            LigneFile(pas: pas, reference: reference, plan: plan, lancee: lancee)
+                .contentShape(Rectangle())
+                .contextMenu {
+                    Button("Retirer la marque « Lancé »", systemImage: "arrow.uturn.backward", role: .destructive) {
+                        modele.retirerLance(lancee.action)
+                    }
+                }
+                .accessibilityAction(named: "Retirer la marque « Lancé »") { modele.retirerLance(lancee.action) }
+                .accessibilityHint("Appui long pour retirer la marque")
+        } else {
+            LigneFile(pas: pas, reference: reference, plan: plan)
+        }
+    }
+
+    /// « Lancé » : le joueur dit qu'il vient de la lancer dans le jeu ; l'app démarre le minuteur sans nouvel export.
+    private func boutonLance(_ pas: ScheduledStep) -> some View {
+        Button {
+            withAnimation(reduire ? nil : .snappy) { modele.marquerLance(pas, couloir: couloir.numero) }
+        } label: {
+            Label("Lancé", systemImage: "hammer.fill").font(Theme.Police.chiffre)
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .tint(Theme.Couleur.action)
+        .foregroundStyle(Theme.Couleur.surBois)
+        .sensoryFeedback(.success, trigger: lancees?.applied.count ?? 0)
+        .padding(.top, Theme.Espace.s)
+        .accessibilityHint("Dit à l'app que tu l'as lancée dans le jeu")
     }
 
     private func puis(_ pas: ScheduledStep) -> some View {
@@ -126,6 +164,7 @@ struct CarteCouloir: View {
                     LigneFile(pas: pas, reference: reference, plan: plan, alancer: i == 0 && couloir.estLibre && pas.start <= plan.maintenant,
                               taille: 40)
                         .padding(.vertical, Theme.Espace.s)
+                    if i == 0 && couloir.estLibre && pas.start <= plan.maintenant { boutonLance(pas).padding(.bottom, Theme.Espace.s) }
                     if i < couloir.file.count - 1 { Filet() }
                 }
             }
