@@ -2,6 +2,7 @@ import ChantierKit
 import Foundation
 import Observation
 import UIKit
+import UserNotifications
 
 /// Ce que les écrans montrent : un village calculé, et d'où il vient.
 struct VillageAffiche {
@@ -43,8 +44,13 @@ final class ModeleApp {
             profilStore.save(profil)
             rafraichirPlan()
             recalculerRythme()                               // les réductions et les heures sans jeu entrent dans la mesure
+            planifierNotifications(plan: affiche?.plan?.plan, estExemple: affiche?.estExemple ?? true)   // heures sans jeu
         }
     }
+    /// Prévenir quand un poste se libère (T26) : éteint par défaut, gardé dans les réglages de l'app.
+    private(set) var notificationsActives = false
+    /// Ce qu'iOS a répondu ; `.denied` : les Réglages disent où l'autoriser.
+    private(set) var autorisationNotifications = UNAuthorizationStatus.notDetermined
     /// Le taux d'occupation des 30 derniers jours (T24) ; nil tant qu'il n'y a pas trois photos sur sept jours.
     private(set) var rythme: Rhythm?
     @ObservationIgnored private var calculRythme: Task<Void, Never>?
@@ -86,6 +92,7 @@ final class ModeleApp {
     /// `changeCount` du presse-papiers au dernier collage : tant qu'il ne bouge pas, on ne reproposera pas le même texte.
     private var presseTraite: Int?
     private static let cleExemple = "exempleActif"
+    private static let cleNotifications = "notificationsActives"
 
     init() {
         reference = try? ReferenceData.load()
@@ -132,6 +139,7 @@ final class ModeleApp {
         #endif
         equipements = reference.flatMap { lectures.equipements(reference: $0) }
         self.reglages = reglages
+        notificationsActives = reglages.bool(forKey: Self.cleNotifications)
         profilStore = ProfilStore(defaults: reglages)
         profil = profilStore.load()
         var texteExemple: String?
@@ -253,6 +261,7 @@ final class ModeleApp {
         let changements = photo.flatMap { villagePrecedent(avant: $0, reference: reference) }.map { village.changements(depuis: $0) }
         let plan = plan(village: village, export: export, reference: reference, estExemple: photo == nil)
         publierAuWidget(plan: plan?.plan, village: village, reference: reference, photo: photo)
+        planifierNotifications(plan: plan?.plan, estExemple: photo == nil)    // chaque import annule et replanifie
         return VillageAffiche(village: village, rapport: progress(of: village, reference: reference), photo: photo,
                               plan: plan, changements: changements)
     }
@@ -268,6 +277,53 @@ final class ModeleApp {
         #endif
         guard let plan else { PontWidget.retirer(partage: partage); return }
         PontWidget.publier(plan: plan, village: village, reference: reference, partage: partage, decalage: decalage)
+    }
+
+    // MARK: Notifications
+
+    /// Allume ou éteint l'option. Allumer demande l'autorisation à iOS ; refusée, l'option reste éteinte.
+    func reglerNotifications(_ voulu: Bool) {
+        guard voulu else { fixerNotifications(false); return }
+        Task {
+            let accordee = await Notifications.autoriser()
+            autorisationNotifications = await Notifications.statut()
+            fixerNotifications(accordee)
+        }
+    }
+
+    /// Au retour dans les Réglages d'iOS : une autorisation retirée remet l'option à éteint.
+    func rafraichirAutorisationNotifications() async {
+        autorisationNotifications = await Notifications.statut()
+        if notificationsActives, autorisationNotifications == .denied { fixerNotifications(false) }
+    }
+
+    private func fixerNotifications(_ actives: Bool) {
+        notificationsActives = actives
+        reglages.set(actives, forKey: Self.cleNotifications)
+        if actives { planifierNotifications(plan: affiche?.plan?.plan, estExemple: affiche?.estExemple ?? true) } else { Notifications.annuler() }
+    }
+
+    /// Annule les notifications en attente et pose celles du plan (T26). L'exemple n'en pose jamais, sauf en débogage
+    /// avec `-notification-dans <secondes>` : la première fin est avancée à maintenant + ce délai (captures).
+    private func planifierNotifications(plan: Plan?, estExemple: Bool) {
+        guard notificationsActives, let reference else { return }
+        var quietHours = profil.quietHours
+        quietHours?.timeZone = .current                       // les heures sans jeu sont celles de l'appareil
+        #if DEBUG
+        let dans = UserDefaults.standard.double(forKey: "notification-dans")
+        if estExemple, dans > 0 { quietHours = nil } else if estExemple { return }
+        #else
+        if estExemple { return }
+        #endif
+        guard let plan else { Notifications.annuler(); return }
+        var liste = Echeances.liste(plan: plan, nom: { reference.item($0)?.name ?? "Amélioration" }, quietHours: quietHours, now: plan.now)
+        #if DEBUG
+        if estExemple, let premiere = liste.first?.date {         // la première part dans `dans` secondes, les autres gardent leur écart
+            let decalage = Date().addingTimeInterval(dans).timeIntervalSince(premiere)
+            liste = liste.map { Echeance(date: $0.date.addingTimeInterval(decalage), titre: $0.titre, corps: $0.corps) }
+        }
+        #endif
+        Notifications.remplacer(par: liste)
     }
 
     /// La photo juste avant celle-ci, lue dans le dossier des photos ; nil quand il n'y en a pas.

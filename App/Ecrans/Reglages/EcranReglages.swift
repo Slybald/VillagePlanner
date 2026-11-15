@@ -35,6 +35,7 @@ struct EcranReglages: View {
                 .id("reductions")
                 seuil($modele.profil)
                 epingles($modele.profil).id("epingles")
+                SectionNotifications().id("notifications")
                 SectionConseiller().id("conseiller")
                 SectionCompteDeJeu().id("compte")
                 Section {
