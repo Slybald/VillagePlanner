@@ -119,7 +119,7 @@
 				C4A000000000000000000303 /* Sources */,
 				C4A000000000000000000302 /* Frameworks */,
 				C4A000000000000000000304 /* Resources */,
-				C4A000000000000000000310 /* Embarquer le widget (VILLAGE_PLANNER_WIDGETS) */,
+				C4A000000000000000000310 /* Embarquer le widget (VILLAGEPLANNER_WIDGETS) */,
 			);
 			buildRules = (
 			);
@@ -221,7 +221,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		C4A000000000000000000310 /* Embarquer le widget (VILLAGE_PLANNER_WIDGETS) */ = {
+		C4A000000000000000000310 /* Embarquer le widget (VILLAGEPLANNER_WIDGETS) */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -231,14 +231,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Embarquer le widget (VILLAGE_PLANNER_WIDGETS)";
+			name = "Embarquer le widget (VILLAGEPLANNER_WIDGETS)";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Le widget est embarqué seulement si VILLAGE_PLANNER_WIDGETS=YES. Avec NO il est compilé sans signature mais n'entre pas dans l'app.\nplugins=\"$TARGET_BUILD_DIR/$PLUGINS_FOLDER_PATH\"\nif [ \"$VILLAGE_PLANNER_WIDGETS\" = \"YES\" ]; then\n  mkdir -p \"$plugins\"\n  rsync -a --delete \"$BUILT_PRODUCTS_DIR/VillagePlannerWidget.appex/\" \"$plugins/VillagePlannerWidget.appex/\"\nelse\n  rm -rf \"$plugins/VillagePlannerWidget.appex\"\nfi\n";
+			shellScript = "# Le widget est embarqué seulement si VILLAGEPLANNER_WIDGETS=YES. Avec NO il est compilé sans signature mais n'entre pas dans l'app.\nplugins=\"$TARGET_BUILD_DIR/$PLUGINS_FOLDER_PATH\"\nif [ \"$VILLAGEPLANNER_WIDGETS\" = \"YES\" ]; then\n  mkdir -p \"$plugins\"\n  rsync -a --delete \"$BUILT_PRODUCTS_DIR/VillagePlannerWidget.appex/\" \"$plugins/VillagePlannerWidget.appex/\"\nelse\n  rm -rf \"$plugins/VillagePlannerWidget.appex\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -393,7 +393,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "$(VILLAGE_PLANNER_ENTITLEMENTS_$(VILLAGE_PLANNER_WIDGETS))";
+				CODE_SIGN_ENTITLEMENTS = "$(VILLAGEPLANNER_ENTITLEMENTS_$(VILLAGEPLANNER_WIDGETS))";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
@@ -429,7 +429,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "$(VILLAGE_PLANNER_ENTITLEMENTS_$(VILLAGE_PLANNER_WIDGETS))";
+				CODE_SIGN_ENTITLEMENTS = "$(VILLAGEPLANNER_ENTITLEMENTS_$(VILLAGEPLANNER_WIDGETS))";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
@@ -464,8 +464,8 @@
 		C4A000000000000000000905 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = "$(VILLAGE_PLANNER_ENTITLEMENTS_$(VILLAGE_PLANNER_WIDGETS))";
-				CODE_SIGNING_ALLOWED = "$(VILLAGE_PLANNER_SIGNATURE_WIDGET_$(VILLAGE_PLANNER_WIDGETS))";
+				CODE_SIGN_ENTITLEMENTS = "$(VILLAGEPLANNER_ENTITLEMENTS_$(VILLAGEPLANNER_WIDGETS))";
+				CODE_SIGNING_ALLOWED = "$(VILLAGEPLANNER_SIGNATURE_WIDGET_$(VILLAGEPLANNER_WIDGETS))";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -494,8 +494,8 @@
 		C4A000000000000000000906 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = "$(VILLAGE_PLANNER_ENTITLEMENTS_$(VILLAGE_PLANNER_WIDGETS))";
-				CODE_SIGNING_ALLOWED = "$(VILLAGE_PLANNER_SIGNATURE_WIDGET_$(VILLAGE_PLANNER_WIDGETS))";
+				CODE_SIGN_ENTITLEMENTS = "$(VILLAGEPLANNER_ENTITLEMENTS_$(VILLAGEPLANNER_WIDGETS))";
+				CODE_SIGNING_ALLOWED = "$(VILLAGEPLANNER_SIGNATURE_WIDGET_$(VILLAGEPLANNER_WIDGETS))";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;

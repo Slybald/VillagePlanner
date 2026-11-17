@@ -44,7 +44,7 @@ Il faut Xcode 26.6 ou plus récent (iOS 26 au minimum sur l'iPhone). Aucune dép
 swift test --package-path Packages/VillagePlannerKit
 
 # Tests de vitesse (50, 100, 200 ms), à part et sans parallélisme
-VILLAGE_PLANNER_VITESSE=1 swift test --package-path Packages/VillagePlannerKit --filter Vitesse --no-parallel
+VILLAGEPLANNER_VITESSE=1 swift test --package-path Packages/VillagePlannerKit --filter Vitesse --no-parallel
 
 # Compilation de l'app pour le simulateur
 xcodebuild -project VillagePlanner.xcodeproj -scheme VillagePlanner -destination 'generic/platform=iOS Simulator' build

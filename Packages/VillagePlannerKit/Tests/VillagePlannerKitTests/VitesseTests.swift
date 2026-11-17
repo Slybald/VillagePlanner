@@ -3,8 +3,8 @@ import Testing
 @testable import VillagePlannerKit
 
 /// Seuils de vitesse du cahier des charges, en temps processeur. Ignorés par défaut : sous charge
-/// (suite parallèle, CI) ils deviennent instables. Lancer : `VILLAGE_PLANNER_VITESSE=1 swift test --filter Vitesse --no-parallel`.
-@Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["VILLAGE_PLANNER_VITESSE"] == "1"))
+/// (suite parallèle, CI) ils deviennent instables. Lancer : `VILLAGEPLANNER_VITESSE=1 swift test --filter Vitesse --no-parallel`.
+@Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["VILLAGEPLANNER_VITESSE"] == "1"))
 struct VitesseTests {
     @Test func lectureDeReelHdv16EnMoinsDe50ms() throws {
         let texte = try Fixtures.texte("reel-hdv16")

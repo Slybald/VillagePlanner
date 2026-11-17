@@ -21,8 +21,8 @@ private func lister(_ racine: URL) -> [String: Data] {
 
 @Suite struct StockageTests {
     @Test func leGroupeVientDeLIdentifiantDeLApp_celuiDuWidgetDonneLeMeme() {
-        #expect(Stockage.groupe(bundleID: "fr.slybald.chantier") == "group.fr.slybald.chantier")
-        #expect(Stockage.groupe(bundleID: "fr.slybald.chantier.widget") == "group.fr.slybald.chantier")
+        #expect(Stockage.groupe(bundleID: "fr.slybald.villageplanner") == "group.fr.slybald.villageplanner")
+        #expect(Stockage.groupe(bundleID: "fr.slybald.villageplanner.widget") == "group.fr.slybald.villageplanner")
         #expect(Stockage.conteneurPartage(bundleID: nil) == nil)     // (sur iOS, un groupe non accordé rend nil aussi)
     }
 

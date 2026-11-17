@@ -7,7 +7,7 @@ import Security
 /// Le Trousseau iOS pour la clé Supercell : mêmes réglages que celui de T19 (accessible appareil déverrouillé, jamais
 /// synchronisé ni restauré ailleurs), autre service et autre compte. T19 reste intact : ses requêtes sont testées telles quelles.
 public struct KeychainStoreJoueur: SecretStore {
-    public static let service = "fr.slybald.chantier.joueur"
+    public static let service = "fr.slybald.villageplanner.joueur"
     public static let account = "supercell-api-key"
 
     public init() {}
