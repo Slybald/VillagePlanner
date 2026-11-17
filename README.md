@@ -1,8 +1,9 @@
-<p align="center"><img src="App/Ressources/Assets.xcassets/AppIcon.appiconset/icone-clair.png" width="128" alt="Icône de Chantier : un mètre pliant en forme de flèche"></p>
+# Village Planner : planificateur d'améliorations pour Clash of Clans
 
-# Chantier
+<p align="center"><img src="App/Ressources/Assets.xcassets/AppIcon.appiconset/icone-clair.png" width="128" alt="Icône de Village Planner : un mètre pliant en forme de flèche"></p>
 
-App iPhone, gratuite et non officielle, pour suivre l'avancement d'un village de Clash of Clans.
+
+App iPhone gratuite et non officielle : elle suit l'avancement de ton village de Clash of Clans et planifie tes améliorations.
 
 - Tu copies l'export de ton village depuis le jeu, tu le colles dans l'app.
 - Elle calcule ton avancement à ton hôtel de ville, au total et par catégorie.
@@ -13,7 +14,7 @@ App iPhone, gratuite et non officielle, pour suivre l'avancement d'un village de
 <p align="center">
   <img src="docs/images/cap.png" width="260" alt="Écran Cap : date de fin de l'hôtel de ville, avancement total et consigne">
   &nbsp;
-  <img src="docs/images/chantier.png" width="260" alt="Écran Chantier : ressources à réunir et couloirs des ouvriers">
+  <img src="docs/images/ouvriers.png" width="260" alt="Écran Ouvriers : ressources à réunir et couloirs des ouvriers">
 </p>
 
 Captures : village d'exemple inventé.
@@ -40,13 +41,13 @@ Il faut Xcode 26.6 ou plus récent (iOS 26 au minimum sur l'iPhone). Aucune dép
 
 ```sh
 # Tests de la logique, sans simulateur
-swift test --package-path Packages/ChantierKit
+swift test --package-path Packages/VillagePlannerKit
 
 # Tests de vitesse (50, 100, 200 ms), à part et sans parallélisme
-CHANTIER_VITESSE=1 swift test --package-path Packages/ChantierKit --filter Vitesse --no-parallel
+VILLAGE_PLANNER_VITESSE=1 swift test --package-path Packages/VillagePlannerKit --filter Vitesse --no-parallel
 
 # Compilation de l'app pour le simulateur
-xcodebuild -project Chantier.xcodeproj -scheme Chantier -destination 'generic/platform=iOS Simulator' build
+xcodebuild -project VillagePlanner.xcodeproj -scheme VillagePlanner -destination 'generic/platform=iOS Simulator' build
 ```
 
 Pour installer sur un iPhone, copie `Config/Signature.exemple.xcconfig` en `Config/Signature.local.xcconfig` (ignoré par git) et mets-y ton identifiant d'équipe Apple.
@@ -55,7 +56,7 @@ Pour installer sur un iPhone, copie `Config/Signature.exemple.xcconfig` en `Conf
 
 Les données de référence du jeu (coûts, durées, niveaux maximums) sont tirées de [ClashKingInc/ClashKingAssets](https://github.com/ClashKingInc/ClashKingAssets) (GPL-3.0), contrôlées avec [chiefpansancolt/clash-of-clans-data](https://github.com/chiefpansancolt/clash-of-clans-data) (MIT). Le fichier embarqué `reference.json` est produit par `outils maj-reference` (procédure : [docs/mise-a-jour-du-jeu.md](docs/mise-a-jour-du-jeu.md)). L'app ne touche pas au jeu : elle lit seulement l'export que tu copies toi-même.
 
-Les illustrations des bâtiments, pièges, unités, héros, familiers et équipements, et les deux décors de l'écran Cap, sont des images du jeu (propriété de Supercell, montrées sans modification) servies par [ClashKingAssets](https://github.com/ClashKingInc/ClashKingAssets) (assets.clashk.ing), qui demande ce crédit. Elles sont dans `App/Ressources/Illustrations/`, produites par `swift run --package-path Packages/ChantierKit outils maj-images` (seulement les éléments qui comptent dans l'avancement ; rapport des éléments sans image dans `Packages/ChantierKit/.cache/maj-images/rapport.md`).
+Les illustrations des bâtiments, pièges, unités, héros, familiers et équipements, et les deux décors de l'écran Cap, sont des images du jeu (propriété de Supercell, montrées sans modification) servies par [ClashKingAssets](https://github.com/ClashKingInc/ClashKingAssets) (assets.clashk.ing), qui demande ce crédit. Elles sont dans `App/Ressources/Illustrations/`, produites par `swift run --package-path Packages/VillagePlannerKit outils maj-images` (seulement les éléments qui comptent dans l'avancement ; rapport des éléments sans image dans `Packages/VillagePlannerKit/.cache/maj-images/rapport.md`).
 
 Polices : [Lilita One](https://fonts.google.com/specimen/Lilita+One) et [Fredoka](https://fonts.google.com/specimen/Fredoka), licence SIL Open Font License 1.1 (textes dans `App/Ressources/Polices/`).
 

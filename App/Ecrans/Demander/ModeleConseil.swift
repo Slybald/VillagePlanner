@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import Foundation
 import Observation
 import Synchronization
@@ -26,7 +26,7 @@ final class ModeleConseil {
         #if DEBUG
         // Captures : `-conseil-exemple conseiller|repli` joue le conseiller avec une fausse API (jamais le réseau, jamais une vraie clé).
         if let exemple = UserDefaults.standard.string(forKey: "conseil-exemple") {
-            let nom = "chantier-conseil-capture"
+            let nom = "villageplanner-conseil-capture"
             UserDefaults.standard.removePersistentDomain(forName: nom)
             let defaults = UserDefaults(suiteName: nom) ?? .standard
             let fausse = exemple == "conseiller" ? FausseApi() : nil

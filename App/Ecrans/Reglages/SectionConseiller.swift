@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// La section « Conseiller » des Réglages (T19) : la clé d'API, collée une fois puis rangée dans le Trousseau, jamais
@@ -19,7 +19,7 @@ struct SectionConseiller: View {
     private static func coffres() -> (any SecretStore, BudgetStore) {
         #if DEBUG
         if let exemple = UserDefaults.standard.string(forKey: "conseiller-exemple") {
-            let nom = "chantier-conseiller-capture"
+            let nom = "villageplanner-conseiller-capture"
             UserDefaults.standard.removePersistentDomain(forName: nom)
             let store = BudgetStore(defaults: UserDefaults(suiteName: nom) ?? .standard)
             if exemple == "avec-cle" {
@@ -74,7 +74,7 @@ struct SectionConseiller: View {
                 Text("\(budget.callsToday) appel\(budget.callsToday > 1 ? "s" : "") sur \(Budget.callsPerDay)")
                     .font(Theme.Police.chiffreDetail)
             }
-        } header: { Text("Conseiller").etiquetteChantier() } footer: {
+        } header: { Text("Conseiller").etiquettePlanner() } footer: {
             Text("La clé reste dans le Trousseau de cet iPhone, sans synchronisation iCloud. Plafonds : \(Budget.callsPerDay) appels par jour et 1\u{00A0}$ par mois ; au-delà, l'app garde la consigne du moteur. Conseil : une clé dédiée à l'app, avec une limite de dépense dans la Console Anthropic.")
                 .font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux)
         }

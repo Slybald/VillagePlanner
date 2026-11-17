@@ -60,5 +60,5 @@ struct EtatVide: View {
     EtatVide(titre: "Aucune photo du village",
              message: "Dans le jeu, copie l'export de ton village, puis reviens ici.",
              titreAction: "Coller l'export") {}
-        .pageChantier()
+        .pagePlanner()
 }

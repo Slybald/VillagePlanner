@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import Foundation
 
 /// Un élément du village avec sa fiche de référence et ce qui lui reste à faire.
@@ -16,7 +16,7 @@ struct ElementAffiche {
 enum Elements {
     /// Les éléments d'une catégorie (un groupe par niveau), les plus chargés d'abord, puis par nom.
     /// Les éléments hors avancement (catégorie nil) n'y sont jamais.
-    static func de(_ categorie: ChantierKit.Category, village: Village, reference: ReferenceData) -> [ElementAffiche] {
+    static func de(_ categorie: VillagePlannerKit.Category, village: Village, reference: ReferenceData) -> [ElementAffiche] {
         regroupes(village.elements)
             .compactMap { e in reference.item(e.itemID).map { ElementAffiche(element: e, fiche: $0) } }
             .filter { $0.fiche.category == categorie }

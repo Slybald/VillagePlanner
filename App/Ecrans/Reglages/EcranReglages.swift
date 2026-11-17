@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// Les Réglages (PLAN §3.4) : le profil de jeu et les réductions en cours. Chaque changement est enregistré
@@ -47,7 +47,7 @@ struct EcranReglages: View {
             #endif
             .font(Theme.Police.texte)
             .scrollContentBackground(.hidden)
-            .pageChantier()
+            .pagePlanner()
             .navigationDestination(for: String.self) { page in
                 if page == "joueur" { EcranJoueur() } else { EcranAPropos() }
             }
@@ -58,7 +58,7 @@ struct EcranReglages: View {
         }
     }
 
-    private func entete(_ texte: String) -> some View { Text(texte).etiquetteChantier() }
+    private func entete(_ texte: String) -> some View { Text(texte).etiquettePlanner() }
     private func note(_ texte: String) -> some View { Text(texte).font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux) }
 
     private func orientation(_ profil: Binding<Profile>) -> some View {

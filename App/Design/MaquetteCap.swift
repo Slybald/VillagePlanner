@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Maquette de l'écran Cap (PLAN §3.1) avec des données inventées, pour juger le thème.
-/// Aucun lien avec ChantierKit : le vrai écran est la tâche T07.
+/// Aucun lien avec VillagePlannerKit : le vrai écran est la tâche T07.
 struct MaquetteCap: View {
     var avecBandeau = false
 
@@ -26,7 +26,7 @@ struct MaquetteCap: View {
 
                     VStack(alignment: .leading, spacing: Theme.Espace.s) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("Avancement total").etiquetteChantier()
+                            Text("Avancement total").etiquettePlanner()
                             Spacer()
                             Text.pourcentageGrand(0.64)
                         }
@@ -37,7 +37,7 @@ struct MaquetteCap: View {
                     CarteConsigne(texte: "Demain 14 h, deux ouvriers se libèrent. Lance l'Arc-X 11 et la Tour de sorts 4 : prépare 18 M d'or.") {}
 
                     VStack(alignment: .leading, spacing: Theme.Espace.m) {
-                        Text("Catégories").etiquetteChantier()
+                        Text("Catégories").etiquettePlanner()
                         // Deux colonnes, une seule aux tailles d'accessibilité.
                         let colonnes = Array(repeating: GridItem(.flexible(), spacing: Theme.Espace.l, alignment: .leading),
                                              count: tailleTexte.isAccessibilitySize ? 1 : 2)
@@ -50,7 +50,7 @@ struct MaquetteCap: View {
                 .padding(.vertical, Theme.Espace.l)
             }
         }
-        .pageChantier()
+        .pagePlanner()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Text("Photo d'hier, 17\u{A0}h\u{A0}28")
@@ -75,13 +75,13 @@ struct MaquetteOnglets: View {
             Tab("Cap", systemImage: "scope") {
                 NavigationStack { MaquetteCap(avecBandeau: avecBandeau) }
             }
-            Tab("Chantier", systemImage: "hammer") {
+            Tab("Ouvriers", systemImage: "hammer") {
                 EtatVide(titre: "Le planning arrive", message: "Les couloirs des ouvriers viendront au jalon 2.",
-                         symbole: "calendar").pageChantier()
+                         symbole: "calendar").pagePlanner()
             }
             Tab("Village", systemImage: "house") {
                 EtatVide(titre: "Le détail arrive", message: "Chaque bâtiment et chaque niveau, au jalon 1.",
-                         symbole: "list.bullet").pageChantier()
+                         symbole: "list.bullet").pagePlanner()
             }
         }
         .tint(Theme.Couleur.texte)

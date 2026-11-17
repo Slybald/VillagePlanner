@@ -37,7 +37,7 @@ struct CartePressePapiers: View {
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 }
 

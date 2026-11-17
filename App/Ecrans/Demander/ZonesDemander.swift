@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// Une zone de saisie : un champ, et un bouton qui envoie.
@@ -39,7 +39,7 @@ struct ZoneProfilPhrase: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Décrire ton style de jeu").etiquetteChantier()
+            Text("Décrire ton style de jeu").etiquettePlanner()
             Text("Écris une phrase, par exemple « attaque aérienne, un seul héros à la fois, je ne joue pas de 22 h à 6 h ». Rien n'est changé avant ta confirmation.")
                 .font(Theme.Police.detail)
                 .foregroundStyle(Theme.Couleur.texteDoux)
@@ -52,7 +52,7 @@ struct ZoneProfilPhrase: View {
         }
         .padding(Theme.Espace.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 
     private func proposition(_ p: ProfilPropose) -> some View {
@@ -91,7 +91,7 @@ struct ZoneQuestions: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Poser une question").etiquetteChantier()
+            Text("Poser une question").etiquettePlanner()
             Text("Par exemple « et avec un ouvrier de plus ? », « et si je priorise la défense ? », « et sans assistants ? ». Les dates viennent du calcul de l'app, la conversation s'efface à la fermeture.")
                 .font(Theme.Police.detail)
                 .foregroundStyle(Theme.Couleur.texteDoux)
@@ -101,7 +101,7 @@ struct ZoneQuestions: View {
         }
         .padding(Theme.Espace.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 
     private func echange(_ e: EchangeQuestion) -> some View {

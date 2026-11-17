@@ -1,5 +1,5 @@
 import Charts
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// Ce que l'écran montre : les photos lisibles, celles qui ne se relisent pas, et le ticket de chacune.
@@ -47,7 +47,7 @@ struct EcranHistorique: View {
             .padding(.horizontal, Theme.Espace.marge)
             .padding(.vertical, Theme.Espace.l)
         }
-        .pageChantier()
+        .pagePlanner()
         .navigationTitle("Historique")
         .navigationBarTitleDisplayMode(.inline)
         .task { await recharger() }
@@ -99,7 +99,7 @@ struct EcranHistorique: View {
             CarteOccupation(derniere: derniere)
         }
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Photos").etiquetteChantier()
+            Text("Photos").etiquettePlanner()
             ForEach(lignes(charge)) { ligne in
                 switch ligne {
                 case .photo(let entree):
@@ -144,7 +144,7 @@ struct CourbeAvancement: View {
         let haut = min(100, max(bas + 5, (points.map(pourcent).max() ?? 0).rounded(.up) + 2))
         let dernier = points.last
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Avancement total").etiquetteChantier()
+            Text("Avancement total").etiquettePlanner()
             if let dernier {
                 Text.pourcentageGrand(dernier.total ?? 0)
             }
@@ -186,7 +186,7 @@ struct CourbeAvancement: View {
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 
     private var etiquetteDate: some AxisMark {
@@ -216,7 +216,7 @@ struct ExplicationHistorique: View {
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 }
 
@@ -259,7 +259,7 @@ struct LignePhoto: View {
         .padding(.vertical, Theme.Espace.s)
         .padding(.trailing, Theme.Espace.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 
     private var lignesTicket: [String] {
@@ -303,7 +303,7 @@ struct LignePhotoIllisible: View {
         .padding(.vertical, Theme.Espace.s)
         .padding(.trailing, Theme.Espace.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 }
 

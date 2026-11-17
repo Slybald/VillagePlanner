@@ -2,9 +2,9 @@ import CoreText
 import SwiftUI
 import UIKit
 
-/// Le thème « Chantier vivant » : la palette du jeu (or, élixir, élixir noir, bois, pierre, ciel), Lilita One pour
+/// Le thème « Village vivant » : la palette du jeu (or, élixir, élixir noir, bois, pierre, ciel), Lilita One pour
 /// les titres et les grands chiffres, Fredoka pour le texte. Seul endroit de l'app où vivent couleurs, polices et
-/// espacements (PLAN §3.5). Contrastes mesurés dans la PR « DA Chantier vivant » (WCAG, au moins 4,5 pour 1 pour le texte).
+/// espacements (PLAN §3.5). Contrastes mesurés dans la PR « DA Village vivant » (WCAG, au moins 4,5 pour 1 pour le texte).
 enum Theme {
 
     /// Couleurs du catalogue `Assets.xcassets/Palette`, chacune en clair et en sombre.
@@ -82,7 +82,7 @@ enum Theme {
             titresDeNavigationEnLilita()
         }
 
-        /// Les titres de la barre de navigation (Chantier, Village, une catégorie) en Lilita One, comme les titres de page.
+        /// Les titres de la barre de navigation (Ouvriers, Village, une catégorie) en Lilita One, comme les titres de page.
         private static func titresDeNavigationEnLilita() {
             guard let police = UIFont(name: "LilitaOne", size: 20) else { return }
             let titre = UIFontMetrics(forTextStyle: .title3).scaledFont(for: police, maximumPointSize: 30)
@@ -112,14 +112,14 @@ enum Theme {
 
 extension View {
     /// Habille une page : fond ciel (ou nuit), texte brun, commandes en élixir.
-    func pageChantier() -> some View {
+    func pagePlanner() -> some View {
         foregroundStyle(Theme.Couleur.texte)
             .tint(Theme.Couleur.elixirTexte)
             .background(Theme.Couleur.fond.ignoresSafeArea())
     }
 
     /// Étiquette de rubrique (« CATÉGORIES »).
-    func etiquetteChantier() -> some View {
+    func etiquettePlanner() -> some View {
         font(Theme.Police.etiquette)
             .textCase(.uppercase)
             .tracking(1)
@@ -127,7 +127,7 @@ extension View {
     }
 
     /// Tuile du jeu : fond clair, bord net, et un socle plus sombre dessous qui lui donne de l'épaisseur.
-    func tuileChantier() -> some View {
+    func tuilePlanner() -> some View {
         background {
             RoundedRectangle(cornerRadius: Theme.rayon)
                 .fill(Theme.Couleur.trait)

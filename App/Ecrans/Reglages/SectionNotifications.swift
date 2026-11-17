@@ -12,10 +12,10 @@ struct SectionNotifications: View {
         Section {
             Toggle("Prévenir quand un poste se libère", isOn: Binding(get: { modele.notificationsActives },
                                                                       set: { modele.reglerNotifications($0) }))
-        } header: { Text("Notifications").etiquetteChantier() } footer: {
+        } header: { Text("Notifications").etiquettePlanner() } footer: {
             Group {
                 if refusee {
-                    Label("Les notifications sont refusées. Pour les autoriser : Réglages d'iOS, Notifications, Chantier, puis « Autoriser les notifications ».",
+                    Label("Les notifications sont refusées. Pour les autoriser : Réglages d'iOS, Notifications, Village Planner, puis « Autoriser les notifications ».",
                           systemImage: "bell.slash")
                         .foregroundStyle(Theme.Couleur.action)
                 } else {

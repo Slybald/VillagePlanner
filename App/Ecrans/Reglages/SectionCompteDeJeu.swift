@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// La section « Compte de jeu » des Réglages (T29) : la clé de l'API officielle, collée une fois puis rangée dans le Trousseau
@@ -30,7 +30,7 @@ struct SectionCompteDeJeu: View {
         private static func creer() -> Outils {
             #if DEBUG
             if let exemple = UserDefaults.standard.string(forKey: "joueur-exemple") {
-                let nom = "chantier-joueur-capture"
+                let nom = "villageplanner-joueur-capture"
                 UserDefaults.standard.removePersistentDomain(forName: nom)
                 let cadence = CadenceStore(defaults: UserDefaults(suiteName: nom) ?? .standard)
                 let cles = MemorySecretStore(exemple == "sans-cle" ? nil : "factice-capture-0000-0000-0000-7C1D")
@@ -100,7 +100,7 @@ struct SectionCompteDeJeu: View {
                     Text(derniereLecture, format: .dateTime.day().month().hour().minute()).font(Theme.Police.chiffreDetail)
                 }
             }
-        } header: { Text("Compte de jeu").etiquetteChantier() } footer: {
+        } header: { Text("Compte de jeu").etiquettePlanner() } footer: {
             Text("Facultatif : les statistiques de joueur (trophées, étoiles de guerre, dons) viennent de l'API officielle, par le relais cocproxy.royaleapi.dev. Crée une clé dédiée à l'app (marche à suivre dans docs/cle-api-supercell.md) : quiconque la connaît peut s'en servir à travers ce relais. Elle reste dans le Trousseau de cet iPhone ; seul ton tag part avec elle. Une lecture par ouverture de l'app et une par heure au plus.")
                 .font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux)
         }

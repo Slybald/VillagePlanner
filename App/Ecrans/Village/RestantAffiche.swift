@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import Foundation
 
 /// Le temps et le coût restants de ce que l'écran Village montre (T10), calculés une fois par écran.
@@ -15,7 +15,7 @@ struct RestantAffiche {
     }
 
     /// Une catégorie : « Reste 104 j 5 h · 162 M d'or ».
-    func resume(_ categorie: ChantierKit.Category) -> String? {
+    func resume(_ categorie: VillagePlannerKit.Category) -> String? {
         Lisible.resume(pas.filter { $0.category == categorie })
     }
 

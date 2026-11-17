@@ -18,5 +18,5 @@ extension Text {
         Text.pourcentageGrand(0)
     }
     .padding(Theme.Espace.marge)
-    .pageChantier()
+    .pagePlanner()
 }

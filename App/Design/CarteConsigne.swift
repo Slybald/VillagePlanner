@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// La consigne du chef de chantier : une phrase, et de quoi en demander une autre.
+/// La consigne du conseiller : une phrase, et de quoi en demander une autre.
 struct CarteConsigne: View {
     let texte: String
     /// Le texte vient du conseiller (et a passé les garde-fous) : l'app le dit, discrètement.
@@ -10,7 +10,7 @@ struct CarteConsigne: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Consigne").etiquetteChantier()
+            Text("Consigne").etiquettePlanner()
             Text(texte)
                 .font(Theme.Police.consigne)
                 .fixedSize(horizontal: false, vertical: true)
@@ -53,5 +53,5 @@ private struct TitreAvantIcone: LabelStyle {
 #Preview("Carte de consigne") {
     CarteConsigne(texte: "Demain 14 h, deux ouvriers se libèrent. Lance l'Arc-X 11 et la Tour de sorts 4 : prépare 18 M d'or.") {}
         .padding(Theme.Espace.marge)
-        .pageChantier()
+        .pagePlanner()
 }

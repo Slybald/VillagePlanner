@@ -4,9 +4,9 @@ DEVELOPMENT_TEAM = ABCDE12345
 
 // Facultatif : si Xcode dit que l'identifiant de l'app n'est pas disponible, mets le tien ici.
 // Le widget (<id>.widget) et l'App Group (group.<id>) suivent tout seuls.
-// APP_BUNDLE_ID = fr.tonnom.chantier
+// APP_BUNDLE_ID = fr.tonnom.villageplanner
 
 // Interrupteur du widget. Par défaut (YES) l'app embarque le widget et déclare l'App Group group.<id>.
 // Si Xcode refuse de signer à cause de l'App Group (compte Apple gratuit), décommente cette ligne : l'app est alors
 // signée seule, sans widget ni App Group, et marche comme avant (photos dans Application Support).
-// CHANTIER_WIDGETS = NO
+// VILLAGE_PLANNER_WIDGETS = NO

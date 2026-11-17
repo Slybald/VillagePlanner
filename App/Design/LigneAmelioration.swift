@@ -49,5 +49,5 @@ struct LigneAmelioration: View {
         Filet()
     }
     .padding(Theme.Espace.marge)
-    .pageChantier()
+    .pagePlanner()
 }
