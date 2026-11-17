@@ -54,7 +54,7 @@ extension APIKey {
 /// Le Trousseau iOS : un mot de passe générique, accessible quand l'appareil est déverrouillé, jamais synchronisé
 /// avec iCloud ni restauré sur un autre appareil.
 public struct KeychainStore: SecretStore {
-    public static let service = "fr.slybald.chantier.conseiller"
+    public static let service = "fr.slybald.villageplanner.conseiller"
     public static let account = "anthropic-api-key"
 
     public init() {}

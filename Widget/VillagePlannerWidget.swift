@@ -14,7 +14,7 @@ struct VillagePlannerWidgetBundle: WidgetBundle {
 
 struct WidgetPetit: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "ChantierPetit", provider: Fournisseur()) { entree in
+        StaticConfiguration(kind: "VillagePlannerPetit", provider: Fournisseur()) { entree in
             VuePetit(entree: entree)
                 .containerBackground(Teinte.fond, for: .widget)
         }
@@ -26,7 +26,7 @@ struct WidgetPetit: Widget {
 
 struct WidgetMoyen: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "ChantierMoyen", provider: Fournisseur()) { entree in
+        StaticConfiguration(kind: "VillagePlannerMoyen", provider: Fournisseur()) { entree in
             VueMoyenne(entree: entree)
                 .containerBackground(Teinte.fond, for: .widget)
         }
@@ -38,7 +38,7 @@ struct WidgetMoyen: Widget {
 
 struct WidgetVerrou: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "ChantierVerrou", provider: Fournisseur()) { entree in
+        StaticConfiguration(kind: "VillagePlannerVerrou", provider: Fournisseur()) { entree in
             VueVerrou(entree: entree)
                 .containerBackground(.fill.tertiary, for: .widget)
         }

@@ -4,7 +4,7 @@ import WidgetKit
 
 /// Ce que l'app dit au widget (T25) : les minuteurs de la dernière photo, couloir par couloir, et l'image de chacun.
 /// Écrit dans le conteneur partagé, puis recharge les chronologies : le widget change d'état à l'heure juste, sans
-/// rafraîchissement. Sans conteneur (interrupteur `VILLAGE_PLANNER_WIDGETS=NO`, App Group refusé), rien n'est écrit.
+/// rafraîchissement. Sans conteneur (interrupteur `VILLAGEPLANNER_WIDGETS=NO`, App Group refusé), rien n'est écrit.
 enum PontWidget {
     /// Côté des images écrites pour le widget, en pixels (une cellule du moyen ou le petit à trois fois la densité).
     private static let cotePixels: CGFloat = 176

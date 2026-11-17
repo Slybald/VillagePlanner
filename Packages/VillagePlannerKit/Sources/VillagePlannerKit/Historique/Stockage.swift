@@ -2,7 +2,7 @@ import Foundation
 
 /// Le conteneur partagé avec le widget (T25). Les photos et leur index restent TOUJOURS dans Application Support :
 /// le widget ne les lit pas, il lit l'état que l'app publie dans le conteneur (`WidgetEtat`). Sans l'App Group
-/// (interrupteur `VILLAGE_PLANNER_WIDGETS=NO`, compte refusé, signature absente), il n'y a pas de conteneur et rien ne change.
+/// (interrupteur `VILLAGEPLANNER_WIDGETS=NO`, compte refusé, signature absente), il n'y a pas de conteneur et rien ne change.
 public enum Stockage {
     /// Le groupe est `group.<identifiant de l'app>` ; le widget (`<identifiant>.widget`) donne le même.
     public static func groupe(bundleID: String) -> String {

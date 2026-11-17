@@ -96,7 +96,7 @@ final class ModeleApp {
     /// Les photos et leur index : TOUJOURS dans Application Support (`Photos` et `index.json`), avec ou sans App Group.
     private let historique: HistoryStore
     /// Le conteneur partagé avec le widget, où seul `PontWidget` écrit (état et images) ; nil sans l'App Group
-    /// (interrupteur `VILLAGE_PLANNER_WIDGETS=NO`, compte refusé) : l'app marche alors comme avant et ne publie rien.
+    /// (interrupteur `VILLAGEPLANNER_WIDGETS=NO`, compte refusé) : l'app marche alors comme avant et ne publie rien.
     private let partage: URL?
     #if DEBUG
     /// `-widget-exemple 1` : publie l'exemple au widget, dates avancées jusqu'à maintenant (captures).
