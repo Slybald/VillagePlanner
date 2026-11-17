@@ -44,5 +44,5 @@ struct GrandeDate: View {
                mouvement: "2 jours gagnés depuis mardi", mention: "hors murs et équipements")
         .padding(Theme.Espace.marge)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .pageChantier()
+        .pagePlanner()
 }

@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import Foundation
 import Observation
 import Synchronization

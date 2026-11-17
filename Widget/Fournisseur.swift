@@ -1,38 +1,38 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 import WidgetKit
 
 /// Une entrée de la chronologie : la date, ce qu'il faut montrer, et où sont les images.
-struct EntreeChantier: TimelineEntry {
+struct EntreePlanner: TimelineEntry {
     let date: Date
     let contenu: WidgetContenu
     /// Le conteneur partagé ; nil sans lui (les images manquent, le reste s'affiche).
     let racine: URL?
 }
 
-/// La chronologie vient de `WidgetChronologie` (ChantierKit, fonction pure testée). Le fournisseur lit l'état écrit par
+/// La chronologie vient de `WidgetChronologie` (VillagePlannerKit, fonction pure testée). Le fournisseur lit l'état écrit par
 /// l'app, c'est tout : pas de réseau, pas de calcul de plan. Politique `.never` : le système change d'entrée à l'heure
 /// de chacune, et l'app recharge la chronologie à chaque import.
 struct Fournisseur: TimelineProvider {
     private var racine: URL? { Stockage.conteneurPartage(bundleID: Bundle.main.bundleIdentifier) }
 
-    func placeholder(in context: Context) -> EntreeChantier {
-        EntreeChantier(date: .now, contenu: .postes(Exemple.lignes(depuis: .now)), racine: nil)
+    func placeholder(in context: Context) -> EntreePlanner {
+        EntreePlanner(date: .now, contenu: .postes(Exemple.lignes(depuis: .now)), racine: nil)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (EntreeChantier) -> Void) {
+    func getSnapshot(in context: Context, completion: @escaping (EntreePlanner) -> Void) {
         completion(context.isPreview ? placeholder(in: context) : entrees().first!)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<EntreeChantier>) -> Void) {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<EntreePlanner>) -> Void) {
         completion(Timeline(entries: entrees(), policy: .never))
     }
 
-    private func entrees() -> [EntreeChantier] {
+    private func entrees() -> [EntreePlanner] {
         let racine = racine
         let etat = racine.flatMap { WidgetEtat.lire(dans: $0) }
         return WidgetChronologie.entrees(etat: etat, maintenant: .now).map {
-            EntreeChantier(date: $0.date, contenu: $0.contenu, racine: racine)
+            EntreePlanner(date: $0.date, contenu: $0.contenu, racine: racine)
         }
     }
 }

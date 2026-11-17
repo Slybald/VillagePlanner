@@ -1,8 +1,8 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 import UIKit
 
-/// La DA « Chantier vivant » pour le widget : la palette du jeu (catalogue copié de l'app, mêmes valeurs en clair et en
+/// La DA « Village vivant » pour le widget : la palette du jeu (catalogue copié de l'app, mêmes valeurs en clair et en
 /// sombre), Lilita One pour les chiffres et les titres, Fredoka pour le texte (déclarées dans Widget-Info.plist).
 enum Teinte {
     static let fond = Color(.fond)
@@ -18,7 +18,7 @@ enum Teinte {
 }
 
 /// Une image écrite par l'app dans le conteneur partagé ; rien quand elle manque.
-struct ImageChantier: View {
+struct ImagePlanner: View {
     let nom: String?
     let racine: URL?
     let cote: CGFloat

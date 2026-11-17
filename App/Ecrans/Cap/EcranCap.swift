@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// L'écran Cap (PLAN §3.1). Avant le jalon 2 : pas de date ni de consigne, l'avancement total en grand
@@ -52,9 +52,9 @@ struct EcranCap: View {
                 defilement.scrollTo(y: y)
             }
             #endif
-            .pageChantier()
+            .pagePlanner()
             .sheet(isPresented: $modele.reglagesOuverts) { EcranReglages(reference: reference) }
-            .sheet(item: $modele.ticket) { TicketChantier(ticket: $0, reference: reference) }
+            .sheet(item: $modele.ticket) { TicketPlanner(ticket: $0, reference: reference) }
             .navigationDestination(isPresented: $modele.historiqueOuvert) { EcranHistorique(reference: reference) }
             // Le conseil est demandé à l'ouverture et quand sa clé change ; pas pendant que les Réglages sont ouverts
             // (chaque réglage toucher changerait la clé) : à leur fermeture.
@@ -144,7 +144,7 @@ struct EcranCap: View {
                 let disposition = tailleTexte.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Espace.xs))
                                                                   : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
                 disposition {
-                    Text("Avancement total").etiquetteChantier()
+                    Text("Avancement total").etiquettePlanner()
                     if !tailleTexte.isAccessibilitySize { Spacer() }
                     Text.pourcentageGrand(total)
                 }
@@ -262,7 +262,7 @@ struct EcranCap: View {
         }
         if !premiers.isEmpty {
             VStack(alignment: .leading, spacing: Theme.Espace.s) {
-                Text("Bloquées").etiquetteChantier()
+                Text("Bloquées").etiquettePlanner()
                 VStack(alignment: .leading, spacing: Theme.Espace.xs) {
                     ForEach(Array(premiers.prefix(3).enumerated()), id: \.offset) { _, b in
                         Text("\(nom(b.step.itemID)) \(b.step.level) : \(raison(b.reason))").font(Theme.Police.detail)
@@ -274,7 +274,7 @@ struct EcranCap: View {
                 }
                 .padding(Theme.Espace.m)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .tuileChantier()
+                .tuilePlanner()
             }
         }
     }
@@ -298,9 +298,9 @@ struct EcranCap: View {
 
     private var categories: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Catégories").etiquetteChantier()
+            Text("Catégories").etiquettePlanner()
             LazyVGrid(columns: colonnes, alignment: .leading, spacing: Theme.Espace.m) {
-                ForEach(ChantierKit.Category.ordreAffichage, id: \.self) { categorie in
+                ForEach(VillagePlannerKit.Category.ordreAffichage, id: \.self) { categorie in
                     let niveau = village.niveau(de: categorie.representant)
                     if let progression = affiche.rapport.categories[categorie], progression.hasWork {
                         TuileCategorie(categorie: categorie, niveau: niveau, valeur: progression.fraction)
@@ -324,9 +324,9 @@ struct EcranCap: View {
                        date: village.townHall >= 1 ? "HDV \(village.townHall)" : "HDV ?",
                        mouvement: "Pas de pourcentage pour cet HDV.")
             VStack(alignment: .leading, spacing: Theme.Espace.m) {
-                Text("Catégories").etiquetteChantier()
+                Text("Catégories").etiquettePlanner()
                 LazyVGrid(columns: colonnes, alignment: .leading, spacing: Theme.Espace.m) {
-                    ForEach(ChantierKit.Category.ordreAffichage, id: \.self) { categorie in
+                    ForEach(VillagePlannerKit.Category.ordreAffichage, id: \.self) { categorie in
                         let n = village.elements
                             .filter { reference.item($0.itemID)?.category == categorie }
                             .reduce(0) { $0 + $1.count }

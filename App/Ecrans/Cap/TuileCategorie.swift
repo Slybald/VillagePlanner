@@ -1,10 +1,10 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// Une catégorie en tuile du jeu : son bâtiment au niveau du joueur, son nom, son avancement.
 /// `valeur` nil : pas de pourcentage, `texte` le remplace (« rien à faire », « 12 éléments »).
 struct TuileCategorie: View {
-    let categorie: ChantierKit.Category
+    let categorie: VillagePlannerKit.Category
     let niveau: Int
     var valeur: Double? = nil
     var texte: String? = nil
@@ -33,7 +33,7 @@ struct TuileCategorie: View {
             }
         }
         .padding(Theme.Espace.s)
-        .tuileChantier()
+        .tuilePlanner()
         .accessibilityElement(children: .combine)
     }
 }

@@ -28,10 +28,10 @@ jobs:
       - name: Versions
         run: ls /Applications | grep Xcode; xcodebuild -version && swift --version
 
-      - name: Tests de ChantierKit
-        run: swift test --package-path Packages/ChantierKit
+      - name: Tests de VillagePlannerKit
+        run: swift test --package-path Packages/VillagePlannerKit
 
       - name: Compilation de l'app
         run: >
-          xcodebuild -quiet -project Chantier.xcodeproj -scheme Chantier
+          xcodebuild -quiet -project VillagePlanner.xcodeproj -scheme VillagePlanner
           -destination 'generic/platform=iOS Simulator' build

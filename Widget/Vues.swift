@@ -1,11 +1,11 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 import WidgetKit
 
 private func postesLibres(_ n: Int) -> String { n == 1 ? "poste libre" : "postes libres" }
 
 /// Ce que dit un widget quand il n'y a pas de couloirs à montrer.
-private struct MessageChantier: View {
+private struct MessagePlanner: View {
     let symbole: String
     let titre: String
     let detail: String
@@ -27,14 +27,14 @@ private struct MessageChantier: View {
 
 /// Le petit : le nombre de postes libres ; sinon le prochain qui se libère, avec son image et son compte à rebours.
 struct VuePetit: View {
-    let entree: EntreeChantier
+    let entree: EntreePlanner
 
     var body: some View {
         switch entree.contenu {
         case .ouvrirApp:
-            MessageChantier(symbole: "hammer", titre: "Ouvre Chantier", detail: "Colle un export pour voir tes postes.", compact: true)
+            MessagePlanner(symbole: "hammer", titre: "Ouvre Village Planner", detail: "Colle un export pour voir tes postes.", compact: true)
         case .photoARefaire:
-            MessageChantier(symbole: "camera", titre: "Photo à refaire", detail: "Tous les minuteurs sont finis.", compact: true)
+            MessagePlanner(symbole: "camera", titre: "Photo à refaire", detail: "Tous les minuteurs sont finis.", compact: true)
         case .postes(let lignes):
             let libres = lignes.libres
             if !libres.isEmpty {
@@ -42,14 +42,14 @@ struct VuePetit: View {
             } else if let prochain = lignes.prochain, let travail = prochain.travail {
                 prochainSeul(prochain, travail)
             } else {
-                MessageChantier(symbole: "hammer", titre: "Aucun poste", detail: "La photo n'en montre pas.", compact: true)
+                MessagePlanner(symbole: "hammer", titre: "Aucun poste", detail: "La photo n'en montre pas.", compact: true)
             }
         }
     }
 
     private func libresEtProchain(libres: [WidgetLigne], prochain: WidgetLigne?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("CHANTIER").font(Teinte.titre(12)).tracking(1).foregroundStyle(Teinte.texteDoux)
+            Text("OUVRIERS").font(Teinte.titre(12)).tracking(1).foregroundStyle(Teinte.texteDoux)
             Spacer(minLength: 0)
             Text("\(libres.count)").font(Teinte.titre(54)).foregroundStyle(Teinte.elixirTexte).minimumScaleFactor(0.7)
             Text(postesLibres(libres.count)).font(Teinte.texte(16)).foregroundStyle(Teinte.texte)
@@ -69,7 +69,7 @@ struct VuePetit: View {
                 Text("PROCHAIN POSTE LIBRE").font(Teinte.titre(11)).tracking(0.5).foregroundStyle(Teinte.texteDoux)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
-                ImageChantier(nom: ligne.image, racine: entree.racine, cote: 34)
+                ImagePlanner(nom: ligne.image, racine: entree.racine, cote: 34)
             }
             Spacer(minLength: 0)
             CompteARebours(fin: travail.fin, depuis: entree.date)
@@ -86,14 +86,14 @@ struct VuePetit: View {
 
 /// Le moyen : les couloirs en tuiles, l'image de l'élément en cours et son compte à rebours.
 struct VueMoyenne: View {
-    let entree: EntreeChantier
+    let entree: EntreePlanner
 
     var body: some View {
         switch entree.contenu {
         case .ouvrirApp:
-            MessageChantier(symbole: "hammer", titre: "Ouvre Chantier", detail: "Colle un export de ton village pour voir tes ouvriers, ton labo et tes familiers.")
+            MessagePlanner(symbole: "hammer", titre: "Ouvre Village Planner", detail: "Colle un export de ton village pour voir tes ouvriers, ton labo et tes familiers.")
         case .photoARefaire:
-            MessageChantier(symbole: "camera", titre: "Photo à refaire", detail: "Tous les minuteurs de ta dernière photo sont finis. Colle un nouvel export.")
+            MessagePlanner(symbole: "camera", titre: "Photo à refaire", detail: "Tous les minuteurs de ta dernière photo sont finis. Colle un nouvel export.")
         case .postes(let lignes):
             let colonnes = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)]
             LazyVGrid(columns: colonnes, spacing: 6) {
@@ -107,7 +107,7 @@ struct VueMoyenne: View {
 
     private func tuile(_ ligne: WidgetLigne) -> some View {
         HStack(spacing: 6) {
-            ImageChantier(nom: ligne.image, racine: entree.racine, cote: 28)
+            ImagePlanner(nom: ligne.image, racine: entree.racine, cote: 28)
                 .frame(width: 28, height: 28)
             VStack(alignment: .leading, spacing: 0) {
                 Text(ligne.titre).font(Teinte.texte(11)).foregroundStyle(Teinte.texteDoux).lineLimit(1)
@@ -133,7 +133,7 @@ struct VueMoyenne: View {
 /// L'écran verrouillé : le compte à rebours du prochain poste, ou le nombre de postes libres.
 struct VueVerrou: View {
     @Environment(\.widgetFamily) private var famille
-    let entree: EntreeChantier
+    let entree: EntreePlanner
 
     var body: some View {
         switch famille {
@@ -144,7 +144,7 @@ struct VueVerrou: View {
 
     @ViewBuilder private var inline: some View {
         switch entree.contenu {
-        case .ouvrirApp: Text("Ouvre Chantier")
+        case .ouvrirApp: Text("Ouvre Village Planner")
         case .photoARefaire: Text("Photo à refaire")
         case .postes(let lignes):
             if !lignes.libres.isEmpty {
@@ -160,7 +160,7 @@ struct VueVerrou: View {
     @ViewBuilder private var rectangle: some View {
         switch entree.contenu {
         case .ouvrirApp:
-            texte("Chantier", "Ouvre l'app pour ajouter une photo.")
+            texte("Village Planner", "Ouvre l'app pour ajouter une photo.")
         case .photoARefaire:
             texte("Photo à refaire", "Les minuteurs sont finis.")
         case .postes(let lignes):
@@ -192,14 +192,14 @@ struct VueVerrou: View {
 // MARK: Aperçus (Xcode)
 
 #Preview("Petit", as: .systemSmall) { WidgetPetit() } timeline: {
-    EntreeChantier(date: .now, contenu: .postes(Exemple.lignes(depuis: .now)), racine: nil)
-    EntreeChantier(date: .now, contenu: .photoARefaire, racine: nil)
+    EntreePlanner(date: .now, contenu: .postes(Exemple.lignes(depuis: .now)), racine: nil)
+    EntreePlanner(date: .now, contenu: .photoARefaire, racine: nil)
 }
 
 #Preview("Moyen", as: .systemMedium) { WidgetMoyen() } timeline: {
-    EntreeChantier(date: .now, contenu: .postes(Exemple.lignes(depuis: .now)), racine: nil)
+    EntreePlanner(date: .now, contenu: .postes(Exemple.lignes(depuis: .now)), racine: nil)
 }
 
 #Preview("Verrou", as: .accessoryRectangular) { WidgetVerrou() } timeline: {
-    EntreeChantier(date: .now, contenu: .postes(Exemple.lignes(depuis: .now)), racine: nil)
+    EntreePlanner(date: .now, contenu: .postes(Exemple.lignes(depuis: .now)), racine: nil)
 }

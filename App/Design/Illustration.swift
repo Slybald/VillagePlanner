@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 import UIKit
 

@@ -2,6 +2,9 @@
 
 ## [Non publié]
 
+### Modifié
+- L'app « Chantier » devient « Village Planner » : nom sous l'icône, projet `VillagePlanner.xcodeproj`, paquet `VillagePlannerKit`, interrupteur `VILLAGE_PLANNER_WIDGETS` (ex-`CHANTIER_WIDGETS`) ; l'écran « Chantier » devient « Ouvriers ». Identifiant de l'app, App Group, Trousseau et données inchangés : une mise à jour par-dessus l'ancienne version garde tout.
+
 ### Ajouté
 - Widgets (petit, moyen, écran verrouillé) : postes libres et comptes à rebours animés par le système, chronologie à l'heure juste, photos et index dans un conteneur partagé (App Group) avec déplacement sans perte ; interrupteur `CHANTIER_WIDGETS` pour compiler sans widget.
 - Icône de l'app (mètre pliant en forme de flèche) en clair, sombre et teinté ; icône en tête de l'écran À propos.

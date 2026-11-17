@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import Foundation
 import Observation
 import UIKit
@@ -32,7 +32,7 @@ struct Retour: Equatable {
 }
 
 enum OngletApp: String, Hashable {
-    case cap, chantier, village
+    case cap, ouvriers, village
 }
 
 /// L'état de l'app : la dernière photo, l'exemple, le presse-papiers. Seul endroit qui touche au presse-papiers.
@@ -70,13 +70,13 @@ final class ModeleApp {
     var demanderOuvert = false
     /// L'écran Historique est ouvert (poussé depuis la date du cap).
     var historiqueOuvert = false
-    /// Le ticket de chantier du dernier import ; nil une fois fermé (il ne revient pas pour cette photo).
+    /// Le ticket de changements du dernier import ; nil une fois fermé (il ne revient pas pour cette photo).
     var ticket: TicketAffiche?
     /// Les améliorations marquées « Lancé » (T28). Gardées à côté des photos ; pour l'exemple, en mémoire seulement.
     private(set) var actions: [LocalAction] = []
     /// La dernière marque retirée, tant qu'on peut l'annuler.
     private(set) var retiree: LocalAction?
-    /// Pourquoi la dernière marque a été refusée (écran Chantier) ; nil une fois une marque acceptée.
+    /// Pourquoi la dernière marque a été refusée (écran Ouvriers) ; nil une fois une marque acceptée.
     private(set) var refusLance: String?
     private let actionsStore: LocalActionStore
     /// Ce qui a été publié au widget et aux notifications la dernière fois.
@@ -96,7 +96,7 @@ final class ModeleApp {
     /// Les photos et leur index : TOUJOURS dans Application Support (`Photos` et `index.json`), avec ou sans App Group.
     private let historique: HistoryStore
     /// Le conteneur partagé avec le widget, où seul `PontWidget` écrit (état et images) ; nil sans l'App Group
-    /// (interrupteur `CHANTIER_WIDGETS=NO`, compte refusé) : l'app marche alors comme avant et ne publie rien.
+    /// (interrupteur `VILLAGE_PLANNER_WIDGETS=NO`, compte refusé) : l'app marche alors comme avant et ne publie rien.
     private let partage: URL?
     #if DEBUG
     /// `-widget-exemple 1` : publie l'exemple au widget, dates avancées jusqu'à maintenant (captures).
@@ -132,13 +132,13 @@ final class ModeleApp {
         // pour voir son ticket), dans le même dossier jetable.
         let nExemple = arguments.integer(forKey: "historique-exemple")
         if chemin != nil || nExemple > 0 {
-            let jetable = FileManager.default.temporaryDirectory.appending(path: "chantier-import-debug")
+            let jetable = FileManager.default.temporaryDirectory.appending(path: "villageplanner-import-debug")
             racine = jetable
             recuperer = false
             if !arguments.bool(forKey: "widget-exemple") { partage = nil }     // un dossier jetable ne publie rien au widget
             try? FileManager.default.removeItem(at: jetable)
             fichiersDebug = chemin?.split(separator: ":").map(String.init) ?? []
-            let nom = "chantier-import-debug"
+            let nom = "villageplanner-import-debug"
             UserDefaults.standard.removePersistentDomain(forName: nom)
             reglages = UserDefaults(suiteName: nom) ?? reglages
         }

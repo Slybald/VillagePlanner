@@ -1,7 +1,7 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
-extension ChantierKit.Category {
+extension VillagePlannerKit.Category {
     /// Le nom affiché (l'app est en français ; les éléments, eux, gardent les noms anglais de la référence).
     var nom: String {
         switch self {
@@ -41,5 +41,5 @@ extension ChantierKit.Category {
     }
 
     /// L'ordre d'affichage de la maquette (PLAN §3.1).
-    static let ordreAffichage: [ChantierKit.Category] = [.defenses, .heroes, .laboratory, .walls, .traps, .economy, .pets, .equipment]
+    static let ordreAffichage: [VillagePlannerKit.Category] = [.defenses, .heroes, .laboratory, .walls, .traps, .economy, .pets, .equipment]
 }

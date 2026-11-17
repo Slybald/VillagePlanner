@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import UserNotifications
 
 /// Le seul endroit qui parle au centre de notifications d'iOS (T26). Les échéances viennent de `Echeances` (fonction pure) ;

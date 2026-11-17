@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 import UIKit
 
@@ -37,5 +37,5 @@ struct IconeRessource: View {
 #Preview("Icônes de ressources") {
     HStack { ForEach(Resource.allCases, id: \.self) { IconeRessource(ressource: $0, taille: 40) } }
         .padding(Theme.Espace.marge)
-        .pageChantier()
+        .pagePlanner()
 }

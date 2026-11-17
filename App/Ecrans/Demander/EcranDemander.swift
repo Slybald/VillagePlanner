@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// L'écran « Demander » (PLAN §3.4) : la consigne en entier, ce que dit le moteur quand le conseiller l'a reformulée,
@@ -33,7 +33,7 @@ struct EcranDemander: View {
                 .padding(.horizontal, Theme.Espace.marge)
                 .padding(.vertical, Theme.Espace.l)
             }
-            .pageChantier()
+            .pagePlanner()
             .scrollDismissesKeyboard(.interactively)
             .task {
                 let s = saisies ?? ModeleDemander(conseil: conseil)
@@ -49,17 +49,17 @@ struct EcranDemander: View {
     /// La consigne que le moteur écrit, telle quelle : ce que le conseiller a reformulé.
     private func moteur(_ plan: PlanAffiche) -> some View {
         VStack(alignment: .leading, spacing: Theme.Espace.s) {
-            Text("Ce que dit le moteur").etiquetteChantier()
+            Text("Ce que dit le moteur").etiquettePlanner()
             Text(plan.consigne).font(Theme.Police.texte).fixedSize(horizontal: false, vertical: true)
         }
         .padding(Theme.Espace.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 
     private func profil(_ plan: PlanAffiche) -> some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Ton profil de jeu").etiquetteChantier()
+            Text("Ton profil de jeu").etiquettePlanner()
             Text(Self.phrase(plan.profil, reference: reference, maintenant: plan.maintenant))
                 .font(Theme.Police.texte)
                 .fixedSize(horizontal: false, vertical: true)
@@ -69,7 +69,7 @@ struct EcranDemander: View {
         }
         .padding(Theme.Espace.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 
     /// « Priorité à l'attaque, un héros à la fois, Reine des archères épinglée, pas de jeu de 23 h à 7 h. »

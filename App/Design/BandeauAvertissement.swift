@@ -34,5 +34,5 @@ struct BandeauAvertissement: View {
                              message: "Ton village contient des niveaux que l'app ne connaît pas encore. Les pourcentages peuvent être faux.")
         Spacer()
     }
-    .pageChantier()
+    .pagePlanner()
 }

@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// « À propos » : version, date des données, mention non officielle de Supercell (PLAN §9) et crédits.
@@ -15,7 +15,7 @@ struct EcranAPropos: View {
                         .clipShape(RoundedRectangle(cornerRadius: 128 * 0.225, style: .continuous))
                         .shadow(color: Theme.Couleur.ombre, radius: 8, y: 4)
                         .accessibilityHidden(true)
-                    Text("Chantier").font(Theme.Police.titre).foregroundStyle(Theme.Couleur.texte)
+                    Text("Village Planner").font(Theme.Police.titre).foregroundStyle(Theme.Couleur.texte)
                 }
                 .frame(maxWidth: .infinity)
                 VStack(alignment: .leading, spacing: 0) {
@@ -26,13 +26,13 @@ struct EcranAPropos: View {
                     ligne("Données de conseil", Self.jour(modele.dateConseils))
                 }
                 .padding(.horizontal, Theme.Espace.m)
-                .tuileChantier()
+                .tuilePlanner()
                 MentionLegale()
             }
             .padding(.horizontal, Theme.Espace.marge)
             .padding(.vertical, Theme.Espace.l)
         }
-        .pageChantier()
+        .pagePlanner()
         .navigationTitle("À propos")
         .navigationBarTitleDisplayMode(.inline)
     }

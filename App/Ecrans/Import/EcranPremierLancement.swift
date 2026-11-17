@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// Le seul écran quand l'app n'a aucune photo : le chemin dans le jeu, le bouton de collage, l'exemple.
@@ -20,7 +20,7 @@ struct EcranPremierLancement: View {
                     // Le terrain vide, l'hôtel de ville le plus haut en fantôme : il attend ton village.
                     Terrain(hdv: 0, fantome: modele.reference?.maxTownHall ?? 1)
                         .padding(.bottom, Theme.Espace.s)
-                    Text("Chantier")
+                    Text("Village Planner")
                         .font(Theme.Police.grandeDate)
                         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                         .lineLimit(1)
@@ -34,7 +34,7 @@ struct EcranPremierLancement: View {
                 .accessibilityAddTraits(.isHeader)
 
                 VStack(alignment: .leading, spacing: Theme.Espace.m) {
-                    Text("Dans le jeu").etiquetteChantier()
+                    Text("Dans le jeu").etiquettePlanner()
                     ForEach(Array(etapes.enumerated()), id: \.offset) { numero, texte in
                         HStack(alignment: .center, spacing: Theme.Espace.m) {
                             Text("\(numero + 1)")
@@ -68,7 +68,7 @@ struct EcranPremierLancement: View {
             .padding(.horizontal, Theme.Espace.marge)
             .padding(.vertical, Theme.Espace.xl)
         }
-        .pageChantier()
+        .pagePlanner()
     }
 }
 

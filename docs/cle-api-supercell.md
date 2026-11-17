@@ -12,7 +12,7 @@ L'API de Supercell n'accepte qu'une clé liée à des adresses IP fixes, et un i
 
 1. Va sur `https://developer.clashofclans.com`, crée un compte développeur (nom et e-mail) ou connecte-toi.
 2. Ouvre « My Account », puis « Create New Key ».
-3. Nom : `Chantier`. Description : `app personnelle, lecture de mon profil`.
+3. Nom : `Village Planner`. Description : `app personnelle, lecture de mon profil`.
 4. Adresses IP autorisées : `45.79.218.79`, l'adresse du relais (indiquée par RoyaleAPI dans `docs.royaleapi.com/proxy.html`). Vérifie-la sur cette page avant de créer la clé : si RoyaleAPI la change, l'app recevra des erreurs 403.
 5. Valide, puis copie la clé (un long texte qui commence par `eyJ`).
 

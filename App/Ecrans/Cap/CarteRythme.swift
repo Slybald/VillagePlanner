@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// Les deux dates du cap côte à côte : au plus tôt (postes jamais à l'arrêt) et à ton rythme (taux d'occupation des
@@ -29,13 +29,13 @@ struct CarteRythme: View {
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
         .accessibilityElement(children: .contain)
     }
 
     private func colonne(_ titre: String, date: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: Theme.Espace.xs) {
-            Text(titre).etiquetteChantier()
+            Text(titre).etiquettePlanner()
             Text(date)
                 .font(Theme.Police.chiffreGrand)
                 .lineLimit(tailleTexte.isAccessibilitySize ? nil : 1)

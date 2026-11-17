@@ -1,5 +1,5 @@
 import Charts
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 extension ModeleApp {
@@ -40,7 +40,7 @@ struct EcranJoueur: View {
             .padding(.horizontal, Theme.Espace.marge)
             .padding(.vertical, Theme.Espace.l)
         }
-        .pageChantier()
+        .pagePlanner()
         .navigationTitle("Joueur")
         .navigationBarTitleDisplayMode(.inline)
         .task { await ouvrir() }
@@ -132,7 +132,7 @@ struct ExplicationJoueur: View {
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 }
 
@@ -146,7 +146,7 @@ struct ValeursJoueur: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text("Maintenant").etiquetteChantier()
+            Text("Maintenant").etiquettePlanner()
             ligne("Trophées", nombre(lecture.trophees))
             ligne("Record", nombre(lecture.record))
             ligne("Ligue", lecture.ligue ?? "—")
@@ -158,7 +158,7 @@ struct ValeursJoueur: View {
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
         .accessibilityElement(children: .contain)
     }
 
@@ -206,7 +206,7 @@ struct CourbeJoueur: View {
     var body: some View {
         let points = points
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text(titre).etiquetteChantier()
+            Text(titre).etiquettePlanner()
             if let dernier = points.last {
                 Text(dernier.valeur.formatted(.number.locale(Locale(identifier: "fr_FR")))).font(Theme.Police.chiffreGrand)
                 if let premier = points.first, points.count >= 2 {
@@ -224,7 +224,7 @@ struct CourbeJoueur: View {
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(resume(points))
     }
@@ -281,14 +281,14 @@ struct EquipementsEquipes: View {
     let heros: [HerosEquipe]
     let reference: ReferenceData
 
-    private func element(_ nom: String, _ categorie: ChantierKit.Category = .equipment) -> (id: Int?, nom: String) {
+    private func element(_ nom: String, _ categorie: VillagePlannerKit.Category = .equipment) -> (id: Int?, nom: String) {
         let id = EquipementsJoueur.identifiant(nom, dans: reference, categorie: categorie)
         return (id, id.flatMap { reference.item($0)?.name } ?? nom)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.l) {
-            Text("Équipés").etiquetteChantier()
+            Text("Équipés").etiquettePlanner()
             ForEach(heros, id: \.heros) { h in
                 let (idHeros, nomHeros) = element(h.heros, .heroes)
                 VStack(alignment: .leading, spacing: Theme.Espace.s) {
@@ -311,7 +311,7 @@ struct EquipementsEquipes: View {
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 
     @ViewBuilder private func image(_ id: Int?, _ taille: CGFloat) -> some View {

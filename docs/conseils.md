@@ -1,6 +1,6 @@
 # Mettre à jour les conseils de priorité
 
-`Packages/ChantierKit/Sources/ChantierKit/Reference/Ressources/conseils.json` contient des **opinions** de guides
+`Packages/VillagePlannerKit/Sources/VillagePlannerKit/Reference/Ressources/conseils.json` contient des **opinions** de guides
 tiers (pas Supercell), pas des faits : quatre listes ordonnées d'identifiants (`defenses`, `laboratory`,
 `equipment`, `pets`). Il est écrit à la main, séparément de `reference.json` (que l'outil `maj-reference` produit).
 
@@ -24,6 +24,6 @@ tiers (pas Supercell), pas des faits : quatre listes ordonnées d'identifiants (
 3. Éditer les `ids` : chercher chaque identifiant par son nom dans `reference.json`, ne jamais en inventer.
    Un élément retiré du jeu sort de la liste.
 4. Mettre à jour `date`, `sources` et, si le classement change de logique, `criterion`.
-5. `swift test --package-path Packages/ChantierKit` : `ConseilsTests` refuse un identifiant inconnu, un doublon,
+5. `swift test --package-path Packages/VillagePlannerKit` : `ConseilsTests` refuse un identifiant inconnu, un doublon,
    un identifiant de la mauvaise catégorie, un identifiant dans deux listes, une source ou un critère manquant.
 6. Ouvrir une PR.

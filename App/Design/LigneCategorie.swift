@@ -34,5 +34,5 @@ struct LigneCategorie: View {
         LigneCategorie(nom: "Pièges", valeur: 1)
     }
     .padding(Theme.Espace.marge)
-    .pageChantier()
+    .pagePlanner()
 }

@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// L'écran Village (PLAN §3.3) : les catégories, puis le détail de chacune à la demande.
@@ -9,16 +9,16 @@ struct EcranVillage: View {
     @Environment(ModeleApp.self) private var modele
     @Environment(\.dynamicTypeSize) private var tailleTexte
     @ScaledMetric(relativeTo: .body) private var image: CGFloat = 52
-    @State private var chemin: [ChantierKit.Category] = Self.cheminDeCapture()
+    @State private var chemin: [VillagePlannerKit.Category] = Self.cheminDeCapture()
 
     private var village: Village { affiche.village }
     private var restant: RestantAffiche { RestantAffiche(affiche: affiche, reference: reference, profil: modele.profil) }
 
     /// Débogage seulement : `-categorie <défenses|…>` ouvre la catégorie au lancement (captures).
-    private static func cheminDeCapture() -> [ChantierKit.Category] {
+    private static func cheminDeCapture() -> [VillagePlannerKit.Category] {
         #if DEBUG
         if let nom = UserDefaults.standard.string(forKey: "categorie"),
-           let categorie = ChantierKit.Category(rawValue: nom) { return [categorie] }
+           let categorie = VillagePlannerKit.Category(rawValue: nom) { return [categorie] }
         #endif
         return []
     }
@@ -42,10 +42,10 @@ struct EcranVillage: View {
             .task { if ProcessInfo.processInfo.arguments.contains("-inconnus") { proxy.scrollTo("inconnus", anchor: .top) } }   // captures
             #endif
             }
-            .pageChantier()
+            .pagePlanner()
             .navigationTitle("Village")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: ChantierKit.Category.self) { categorie in
+            .navigationDestination(for: VillagePlannerKit.Category.self) { categorie in
                 EcranCategorie(categorie: categorie, affiche: affiche, reference: reference)
             }
         }
@@ -58,13 +58,13 @@ struct EcranVillage: View {
 
     private var categories: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Catégories").etiquetteChantier().padding(.bottom, Theme.Espace.s)
+            Text("Catégories").etiquettePlanner().padding(.bottom, Theme.Espace.s)
             let restant = restant
             if let mention = restant.mentionReduction {
                 Text(mention).font(Theme.Police.detail).foregroundStyle(Theme.Couleur.texteDoux)
                     .padding(.bottom, Theme.Espace.s)
             }
-            ForEach(ChantierKit.Category.ordreAffichage, id: \.self) { categorie in
+            ForEach(VillagePlannerKit.Category.ordreAffichage, id: \.self) { categorie in
                 NavigationLink(value: categorie) {
                     HStack(spacing: Theme.Espace.m) {
                         // Aux tailles d'accessibilité, l'image passe au-dessus du texte.
@@ -86,7 +86,7 @@ struct EcranVillage: View {
                     }
                     .padding(Theme.Espace.m)
                     .contentShape(Rectangle())
-                    .tuileChantier()
+                    .tuilePlanner()
                 }
                 .buttonStyle(.plain)
                 .padding(.bottom, Theme.Espace.s)
@@ -95,7 +95,7 @@ struct EcranVillage: View {
     }
 
     /// Pourcentage, ou texte quand il n'y en a pas (A4 : rien à faire ; V7 : HDV inconnu).
-    @ViewBuilder private func resume(_ categorie: ChantierKit.Category) -> some View {
+    @ViewBuilder private func resume(_ categorie: VillagePlannerKit.Category) -> some View {
         if let progression = affiche.rapport.categories[categorie] {
             if progression.hasWork, tailleTexte.isAccessibilitySize {
                 // Un nom comme « Défenses » ne tient pas à côté de son chiffre : l'un sous l'autre.
@@ -121,7 +121,7 @@ struct EcranVillage: View {
     /// V5 : identifiants absents de la référence, exclus des calculs.
     private var inconnus: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Éléments inconnus").etiquetteChantier().padding(.bottom, Theme.Espace.xs)
+            Text("Éléments inconnus").etiquettePlanner().padding(.bottom, Theme.Espace.xs)
             Text("Absents des données de l'app, donc exclus des calculs.")
                 .font(Theme.Police.detail)
                 .foregroundStyle(Theme.Couleur.texteDoux)

@@ -1,9 +1,9 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// Les éléments d'une catégorie : ce qui reste d'abord, les terminés repliés en une ligne.
 struct EcranCategorie: View {
-    let categorie: ChantierKit.Category
+    let categorie: VillagePlannerKit.Category
     let affiche: VillageAffiche
     let reference: ReferenceData
     @Environment(ModeleApp.self) private var modele
@@ -37,7 +37,7 @@ struct EcranCategorie: View {
                     }
                     if !restants.isEmpty {
                         VStack(alignment: .leading, spacing: Theme.Espace.s) {
-                            Text("Reste à faire").etiquetteChantier()
+                            Text("Reste à faire").etiquettePlanner()
                             ForEach(Array(restants.enumerated()), id: \.offset) { _, e in
                                 let id = e.element.itemID
                                 LigneElement(element: e.element, nom: e.fiche.name, complement: restant.complement(e.element),
@@ -58,7 +58,7 @@ struct EcranCategorie: View {
         .task { if terminesOuverts { proxy.scrollTo("termines", anchor: .top) } }   // captures
         #endif
         }
-        .pageChantier()
+        .pagePlanner()
         .navigationTitle(categorie.nom)
         .navigationBarTitleDisplayMode(.inline)
     }

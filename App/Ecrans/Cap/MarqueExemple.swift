@@ -17,7 +17,7 @@ struct MarqueExemple: View {
     }
 
     @ViewBuilder private var contenu: some View {
-        Text("Exemple").etiquetteChantier().foregroundStyle(Theme.Couleur.texte).fixedSize()
+        Text("Exemple").etiquettePlanner().foregroundStyle(Theme.Couleur.texte).fixedSize()
         Text("village inventé, pas le tien")
             .font(Theme.Police.detail)
             .foregroundStyle(Theme.Couleur.texteDoux)

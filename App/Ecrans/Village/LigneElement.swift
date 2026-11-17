@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// Un groupe d'exemplaires identiques : nom, niveau actuel et maximum, minuteur.
@@ -37,7 +37,7 @@ struct LigneElement: View {
                 .accessibilityLabel(epingle ? "Désépingler \(nom)" : "Épingler \(nom)")
             }
         }
-        .tuileChantier()
+        .tuilePlanner()
     }
 
     private var texte: some View {

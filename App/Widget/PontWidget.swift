@@ -1,16 +1,16 @@
-import ChantierKit
+import VillagePlannerKit
 import UIKit
 import WidgetKit
 
 /// Ce que l'app dit au widget (T25) : les minuteurs de la dernière photo, couloir par couloir, et l'image de chacun.
 /// Écrit dans le conteneur partagé, puis recharge les chronologies : le widget change d'état à l'heure juste, sans
-/// rafraîchissement. Sans conteneur (interrupteur `CHANTIER_WIDGETS=NO`, App Group refusé), rien n'est écrit.
+/// rafraîchissement. Sans conteneur (interrupteur `VILLAGE_PLANNER_WIDGETS=NO`, App Group refusé), rien n'est écrit.
 enum PontWidget {
     /// Côté des images écrites pour le widget, en pixels (une cellule du moyen ou le petit à trois fois la densité).
     private static let cotePixels: CGFloat = 176
 
     /// `decalage` : en débogage seulement, avance les dates du plan de l'exemple jusqu'à maintenant (captures du widget).
-    /// `lancees` : les marques « Lancé » (T28), pour que le widget numérote les couloirs comme l'écran Chantier.
+    /// `lancees` : les marques « Lancé » (T28), pour que le widget numérote les couloirs comme l'écran Ouvriers.
     static func publier(plan: Plan, village: Village, reference: ReferenceData, partage: URL?, decalage: TimeInterval = 0,
                         lancees: LocalActionsResult? = nil) {
         guard let partage else { return }

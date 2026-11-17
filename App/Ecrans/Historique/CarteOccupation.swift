@@ -1,4 +1,4 @@
-import ChantierKit
+import VillagePlannerKit
 import SwiftUI
 
 /// Les mots du taux d'occupation : le même chiffre dans l'Historique et sur l'écran Cap.
@@ -68,7 +68,7 @@ struct CarteOccupation: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Espace.m) {
-            Text(titre).etiquetteChantier()
+            Text(titre).etiquettePlanner()
             if let premiere = lignes.first {
                 VStack(alignment: .leading, spacing: Theme.Espace.xs) {
                     Text(TexteOccupation.poste(premiere.poste) + " au travail")
@@ -109,6 +109,6 @@ struct CarteOccupation: View {
         }
         .padding(Theme.Espace.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tuileChantier()
+        .tuilePlanner()
     }
 }

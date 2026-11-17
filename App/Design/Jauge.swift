@@ -47,5 +47,5 @@ struct Jauge: View {
         Jauge(valeur: 0.31, taille: .fine, couleur: Theme.Couleur.elixir)
     }
     .padding(Theme.Espace.marge)
-    .pageChantier()
+    .pagePlanner()
 }
